@@ -8,6 +8,7 @@ import db from './dbconnection.js'
 import bcrypt from 'bcrypt'
 import passport from 'passport'
 import { Strategy } from 'passport-local'
+import salesRoutes from './sale-routes/salesRoutes.js'
 
 
 const app = express()
@@ -17,14 +18,13 @@ const saltRounds = 10
 
 app.use(bodyParser.urlencoded({extended: true}))
 
-app.use(express.json())
-
 app.use(cors({
     origin: 'http://localhost:5173',
     credentials: true,
     optionSuccessStatus: '200',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
 }))
+app.use(express.json())
 
 app.use(session({
     secret: process.env.SESSION_SECRET,
@@ -38,6 +38,7 @@ app.use(session({
 app.use(passport.initialize())
 app.use(passport.session())
 
+app.use('/sales', salesRoutes)
 
 const verifyEmailExists = async (email) => {
     try {
@@ -136,17 +137,25 @@ passport.deserializeUser((user, done) => {
 })
 
 app.get('/getemployee', (req, res, next) => {
-    console.log('authenticated: ' + req.isAuthenticated())
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
     else{
-        return res.status(200).json({
-            data: req.user,
-            isLoggedIn: true,
-            message: 'success'
-
+        const getEmployeeQry = 
+        'SELECT first_name , last_name, employee_number , email, employee_role as employeeRole, goals.name as goalName, campaigns.name as campaignName, employees.alt_campaign_id as altCampaign, shift_duration as shiftDuration \
+        FROM employees INNER JOIN goals ON employees.goal_id = goals.id INNER JOIN campaigns ON employees.campaign_id = campaigns.id WHERE employees.id = $1'
+        const empId = req.user.id
+        db.query(getEmployeeQry, [empId], (err, result) => {
+            if (err) return next(createError.BadRequest(err.message))
+            
+            const employee = result.rows[0]
+        
+            return res.status(200).json({
+                employeeData: employee,
+                message: 'retrieved data successfully'
+            })
         })
+        
     }
 })
 
