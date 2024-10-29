@@ -88,7 +88,7 @@ salesRoutes.put('/editsale', (req, res, next)=> {
     )
 })
 
-salesRoutes.get('/getsales/all', (req, res, next) => {
+salesRoutes.get('/getsale/all', (req, res, next) => {
     if(!req,isAuthenticated()){
         return next(createError.Unauthorized())
     }
@@ -123,6 +123,25 @@ salesRoutes.get('/getsalesbydate/:date', (req, res, next) => {
             sales: resultData
         })
     } )
+})
+
+
+salesRoutes.get('/getsales/:id', (req, res, next) => {
+    if ( !req.isAuthenticated() ) return next( createError.Unauthorized() )
+    
+    const getSalesQry = 'SELECT * FROM sales WHERE id = $1'
+
+    const {id} = req.params
+
+    db.query(getSalesQry, [id], (err, result) => {
+        if ( err ) return next( createError.BadRequest() ) 
+
+        return res.status(200).json({
+            message: 'data retrieved successfully',
+            requestedData: result.rows
+        })
+    })
+    
 })
 
 export default salesRoutes

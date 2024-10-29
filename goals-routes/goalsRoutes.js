@@ -8,6 +8,11 @@ goalsRouter.post('/addgoal', (req, res, next) => {
     if( !req.isAuthenticated() ){
         return next(createError.Unauthorized() )
     }
+
+    if( !req.user.employee_role ){
+        return next(createError.Forbidden() )
+    }
+
     const {
         name,
         hourlySales,
@@ -18,14 +23,14 @@ goalsRouter.post('/addgoal', (req, res, next) => {
 
     const addGoalQry =
     'INSERT INTO goals(name, hourly_sales,\
-    hourly_decisions, employee_id entry_date)\
+    hourly_decisions, employee_id, entry_date)\
     VALUES($1, $2, $3, $4, $5)'
 
     db.query(
         addGoalQry,
         [name, hourlySales, hourlyDecisions, employeeId, entryDate],
         (err, result)=> {
-            if ( err ) return next(createError.BadRequest('Unable to add goal'))
+            if ( err ) return next(createError.BadRequest(err.message))
 
             return res.status(200).json({
                 message: 'campaign added successfully'
@@ -81,7 +86,7 @@ goalsRouter.put('/editgoal', (req, res, next) => {
 })
 
 goalsRouter.get('/getgoal/all', (req, res, next) => {
-    if(!req,isAuthenticated()){
+    if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
     const getSalesQry = 
@@ -94,7 +99,9 @@ goalsRouter.get('/getgoal/all', (req, res, next) => {
         const goals = result.rows
         return res.status(200).json({
             message: 'retrieved data successfully',
-            goals,
+            requestedData: goals,
         })
     })
 })
+
+export default goalsRouter

@@ -12,22 +12,21 @@ campaignsRouter.post('/addcampaign', (req, res, next) => {
         name,
         commission,
         tax,
-        discount, 
-        gaolId,
+        goalId,
         employeeId,
         entryDate
     } = req.body
 
     const addCampaignQry =
     'INSERT INTO campaigns(name, commission,\
-    tax, goal_id, discount, employee_id, entry_date)\
-    VALUES($1, $2, $3, $4, $5, $6, $7)'
+    tax, goal_id, employee_id, entry_date)\
+    VALUES($1, $2, $3, $4, $5, $6)'
 
     db.query(
         addCampaignQry,
-        [name, commission, tax, gaolId, discount, employeeId, entryDate],
+        [name, commission, tax, goalId, employeeId, entryDate],
         (err, result)=> {
-            if ( err ) return next(createError.BadRequest('Unable to add campaign'))
+            if ( err ) return next(createError.BadRequest(err.message))
 
             return res.status(200).json({
                 message: 'campaign added successfully'
@@ -87,7 +86,7 @@ campaignsRouter.put('/editcampaign', (req, res, next) => {
 })
 
 campaignsRouter.get('/getcampaign/all', (req, res, next) => {
-    if(!req,isAuthenticated()){
+    if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
     const getSalesQry = 
@@ -100,7 +99,7 @@ campaignsRouter.get('/getcampaign/all', (req, res, next) => {
         const campaigns = result.rows
         return res.status(200).json({
             message: 'retrieved data successfully',
-            campaigns,
+            requestedData: campaigns,
         })
     })
 })
