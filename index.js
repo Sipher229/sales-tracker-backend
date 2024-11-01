@@ -1,4 +1,4 @@
-import express from 'express'
+import express, { response } from 'express'
 import 'dotenv/config'
 import cors from 'cors'
 import createError from 'http-errors'
@@ -12,6 +12,7 @@ import salesRoutes from './sale-routes/salesRoutes.js'
 import goalsRouter from './goals-routes/goalsRoutes.js'
 import campaignsRouter from './campaigns-router/campaignsRouter.js'
 import employeeRouter from './employee-routes/employeeRouter.js'
+import {getCurrentDate, getCurrentDateTme} from './dateFns.js'
 
 
 const app = express()
@@ -50,9 +51,49 @@ app.post('/login', passport.authenticate('local', {
     failureRedirect: '/notauthorized'
 }))
 
+const updateLoginTime =  async (loginDate, loginTimeAndDate, employeeId) => {
+    const qry = 
+    'INSERT INTO daily_logs(login_time, login_date, employee_id, shift_duration)\
+    VALUES($1, $2, $3, 8)'
+   
 
-passport.use(new Strategy(function verify(username, password, done) {
-    const qry = 'SELECT id, email, password, employee_role from employees where email = $1'
+    try {
+        const response = await db.query(qry, [loginTimeAndDate, loginDate , employeeId])
+        return true
+    } catch (error) {
+        console.log(error.message)
+        return false
+    }
+}
+const verifyLoggedInToday = async (email, loginDate) => {
+    const qry = 
+    'SELECT * FROM employees INNER JOIN daily_logs\
+    ON employees.id = daily_logs.employee_id WHERE email = $1 and login_date = $2'
+    try {
+        const response = await db.query(qry, [email, loginDate])
+        if(response.rows.length === 0){
+            return false
+        }
+        else{
+            return true
+        }
+
+    } catch (error) {
+        console.log(error.message)
+        return false
+    }
+}
+
+passport.use(new Strategy( async function verify(username, password, done) {
+    const qry = 
+    'SELECT id, email, password, employee_role from employees where email = $1'
+
+    
+    const loginDate = getCurrentDate()
+    
+    const timeAndDate = getCurrentDateTme()
+    
+    const loggedInToday = await verifyLoggedInToday(username, loginDate)
     
     db.query(qry, [username], (err, result) => {
         if(err){
@@ -60,12 +101,18 @@ passport.use(new Strategy(function verify(username, password, done) {
         }
         if(result.rows.length !== 0){
 
-            bcrypt.compare(password, result.rows[0].password, (error, correct) =>{
+            bcrypt.compare(password, result.rows[0].password, async (error, correct) =>{
                 if (error) {
                     return done(error)
                 }
                 else {
                     if(correct){
+            
+                        if ( !loggedInToday ){
+                            await updateLoginTime(loginDate, timeAndDate, result.rows[0].id)
+                        
+                        }
+
                         return done(null, result.rows[0])
                     }
                     else {
@@ -93,7 +140,19 @@ app.get('/notauthorized', (req, res, next)=>{
 }) 
     
 
-
+app.delete("/logout", (req, res) => {
+    if(req.isAuthenticated()){
+        return req.logOut((err)=>{
+            if (err) {return next(createError.InternalServerError())}
+            return res.status(200).json({
+                message: "logged out successfully",
+            })
+        })
+    }else{
+        return next(createError.Unauthorized())
+    }
+    
+})
 
 app.use((req, res, next)=> {
     next(createError.NotFound())
@@ -105,6 +164,7 @@ app.use((err, req, res, next)=> {
         message: err.message
     })
 })
+
 
 
 app.listen(port, () => console.log(`listening on port ${port}`) )

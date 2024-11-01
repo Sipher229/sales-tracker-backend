@@ -2,6 +2,9 @@ import express from 'express'
 import createError from 'http-errors'
 import db from '../dbconnection.js'
 import bcrypt from 'bcrypt'
+import 'dotenv/config'
+import { getCurrentDate } from '../dateFns.js'
+
 
 const employeeRouter = express.Router()
 const saltRounds = 10
@@ -71,34 +74,77 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
     
 })
 
+employeeRouter.post('/addemployee/:pin', async (req, res, next) => {
+    const receivedPin = req.params.pin
+    const pin = process.env.PIN 
+    if (receivedPin !== pin) return next(createError.Forbidden())
 
-employeeRouter.get('/getemployee', (req, res, next) => {
+    const {
+        firstName,
+        lastName, 
+        employeeNumber, 
+        username, 
+        password,
+        employeeRole,
+    } = req.body
+
+    const registerQry = 
+    'INSERT INTO employees(id, first_name, last_name, employee_number, email, password, employee_role)\
+    VALUES(DEFAULT, $1, $2, $3, $4, $5, $6) RETURNING id'
+
+    const emailExists = await verifyEmailExists(username)
+    if(!emailExists){
+        bcrypt.hash(password, saltRounds, (err, hash) => {
+            if(err) {
+                next(createError.InternalServerError())
+            }
+            db.query(registerQry, [firstName, lastName, employeeNumber, username, 
+                hash, employeeRole],
+                
+                (error, result)=>{
+                    if (error) {
+                        next(createError.BadRequest(error.message))
+                    }
+                    else{
+                        res.status(200).json({
+                            message: "successfully registered the employee",
+                            employeeId: result.rows[0].id
+                        })
+                    }
+                }
+            )
+        })
+        
+    } else {
+        next(createError.Conflict('email already exists'))
+    }
+})
+
+employeeRouter.get('/getemployee', async  (req, res, next) => {
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
     else{
-        // const getEmployeeQry = 
-        // 'SELECT first_name , last_name, employee_number , email, employee_role as employeeRole, goals.name as goalName, campaigns.name as campaignName, employees.alt_campaign_id as altCampaign, shift_duration as shiftDuration \
-        // FROM employees INNER JOIN goals ON employees.goal_id = goals.id INNER JOIN campaigns ON employees.campaign_id = campaigns.id WHERE employees.id = $1'
-        // const empId = req.user.id
-        // db.query(getEmployeeQry, [empId], (err, result) => {
-        //     if (err) return next(createError.BadRequest(err.message))
+        const empId = req.user.id
+
+        const getEmployeeQry = 
+        'SELECT employees.id as employeeId, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
+        campaigns.name as campaignName, shift_duration, login_time, sales_per_hour, daily_logs.commission as closingCommission\
+        FROM campaigns FULL JOIN goals ON goals.id = campaigns.goal_id FULL JOIN employees\
+        ON campaigns.id = employees.campaign_id FULL JOIN daily_logs ON employees.id = daily_logs.employee_id\
+        WHERE employees.id = $1'
+        
+        db.query(getEmployeeQry, [empId], (err, result) => {
+            if (err) return next(createError.BadRequest(err.message))
             
-        //     const employee = result.rows
+            const employee = result.rows
         
-        //     return res.status(200).json({
-        //         requestedData: employee,
-        //         message: 'retrieved data successfully'
-        //     })
-        // })
-
-        const {email, id, employee_role} = req.user
-
-        return res.status( 200 ).json({
-            message: "authentication successful",
-            requestedData: {email, id, employee_role}
+            return res.status(200).json({
+                requestedData: employee,
+                message: 'retrieved data successfully'
+            })
         })
-        
+
     }
 
 })
@@ -180,12 +226,31 @@ employeeRouter.patch('/assign/campaign', (req, res, next) => {
 })
 
 employeeRouter.patch('/edit/shiftduration', (req, res, next) => {
-    const {shiftDuration, employeeId} = req.body
+    const {shiftDuration} = req.body
+    const loginDate = getCurrentDate()
 
     const qry = 
-    'UPDATE employees SET shift_duration = $1 WHERE id = $2'
+    'UPDATE daily_logs SET shift_duration = $1 WHERE login_date = $2'
 
-    db.query(qry, [shiftDuration, employeeId], (err, result) => {
+    db.query(qry, [shiftDuration, loginDate], (err, result) => {
+        if ( err ) return next(createError.BadRequest())
+
+        return res.status(200).json({
+            message: "Information updated successfully",
+        })
+    })
+})
+employeeRouter.patch('/edit/shiftduration/manager', (req, res, next) => {
+    if ( !req.isAuthenticated() ) return next(createError.Unauthorized())
+
+    if ( req.user.employee_role !== 'manager') return next( createError.Forbidden() )
+
+    const {shiftDuration, loginDate} = req.body
+
+    const qry = 
+    'UPDATE daily_logs SET shift_duration = $1 WHERE login_date = $2'
+
+    db.query(qry, [shiftDuration, loginDate], (err, result) => {
         if ( err ) return next(createError.BadRequest())
 
         return res.status(200).json({
@@ -218,11 +283,13 @@ employeeRouter.get('/getsubordinates/:id', (req, res, next) => {
     const {id} = req.params
 
     const qry = 
-    'SELECT first_name, last_name, email, shift_duration, employee_role, employee_number, id, campaign_id, manager_id, alt_campaign_id FROM employees WHERE manager_id =$1'
+    'SELECT first_name, last_name, email, shift_duration, employee_role,\
+    employee_number, employees.id as id, campaign_id, manager_id, alt_campaign_id, login_time\
+    FROM employees INNER JOIN daily_logs ON employees.id = daily_logs.employee_id\
+    WHERE manager_id =$1'   
     
     db.query(qry, [id], (err, result) => {
         if ( err ) return next( createError.BadRequest(err.message) )
-
         return res.status(200).json({
             message: 'data retrieved successfull',
             requestedData: result.rows
@@ -231,4 +298,14 @@ employeeRouter.get('/getsubordinates/:id', (req, res, next) => {
 
 
 })
+
+employeeRouter.post('/confirmemail', (req, res, next) => {
+    return next(createError.NotImplemented())
+})
+
+employeeRouter.post('/resetpassword', (req, res, next) => {
+    return next(createError.NotImplemented())
+})
 export default employeeRouter
+
+// update logs whenever a sale is edited or deleted

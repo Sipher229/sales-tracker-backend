@@ -1,25 +1,56 @@
 import express from 'express'
 import db from '../dbconnection.js'
 import createError from 'http-errors'
+import {differenceInHours, getCurrentDateTme, getCurrentDate} from '../dateFns.js'
 
 const salesRoutes = express.Router()
 
+const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate) => {
+    let hours = hoursLoggedIn
+    if (hoursLoggedIn  === 0){
+        hours = 1
+    }
+    const qry = 
+    'UPDATE daily_logs SET\
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/$2),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $3),\
+    employee_id = $4\
+    WHERE login_date = $5'
+
+    try {
+        await db.query(qry, [employeeId, hours, employeeId, employeeId, loginDate])
+        return true
+    } catch (error) {
+        console.log(error.message)
+        return false
+    }
+}
+
+
 salesRoutes.post('/addsale', (req, res, next) => {
-    if(!req.isAuthenticated() ){
+    if( !req.isAuthenticated() ){
         return next(createError.Unauthorized())
     }
     const {
         customerNumber,
         campaignId,
-        saleName,
+        name,
         price,
         discount,
         commission, 
         tax,
         employeeId,
-        entryDate
+        loginTime
     } = req.body
 
+    if ( !loginTime ) return next(createError.BadRequest('login time should be included in the request body'))
+    const loginDate = getCurrentDate()
+
+    const currentTime = getCurrentDateTme()
+    const hoursLoggedIn = differenceInHours(currentTime, loginTime)
+    // console.log(loginTime + " " + currentTime)
+    // console.log(hoursLoggedIn)
+    
     const addSaleQry = 
     'INSERT INTO sales(customer_number, campaign_id,\
     sale_name, price, discount, tax, commission, employee_id, entry_date)\
@@ -27,9 +58,13 @@ salesRoutes.post('/addsale', (req, res, next) => {
 
     db.query(
         addSaleQry,
-        [customerNumber, campaignId, saleName, price, discount, tax, commission, employeeId, entryDate],
-        (err, result) => {
-            if( err ) return next(createError.BadRequest('unable to save sale'))
+        [customerNumber, campaignId, name, price, discount, tax, commission, employeeId, loginDate],
+        async (err, result) => {
+            if( err ) return next(createError.BadRequest(err.message))
+
+            const logsUpdated = await updateSalesForLogs(hoursLoggedIn, employeeId, loginDate)
+
+            if (!logsUpdated) console.log('failed to update logs')
             
             return res.status(200).json({
                 message: 'added sale successfully',
