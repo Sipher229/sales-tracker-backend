@@ -10,15 +10,17 @@ const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate) => {
     if (hoursLoggedIn  === 0){
         hours = 1
     }
+    else if (hoursLoggedIn > 8){
+        hours = 8
+    }
     const qry = 
     'UPDATE daily_logs SET\
     sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/$2),\
-    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $3),\
-    employee_id = $4\
-    WHERE login_date = $5'
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $3)\
+    WHERE login_date = $4 AND employee_id = $5'
 
     try {
-        await db.query(qry, [employeeId, hours, employeeId, employeeId, loginDate])
+        await db.query(qry, [employeeId, hours, employeeId, loginDate, employeeId])
         return true
     } catch (error) {
         console.log(error.message)
@@ -26,6 +28,22 @@ const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate) => {
     }
 }
 
+const updateLogsAfterEdit = async (employeeId, entryDate) => {
+    const qry =
+    'UPDATE daily_logs SET\
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/daily_logs.shift_duration),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $2)\
+    WHERE login_date = $3 AND employee_id = $4'
+
+    try {
+        await db.query(qry, [employeeId, employeeId, entryDate, employeeId])
+        return true
+    } catch (error) {
+        console.log(error.message)
+        return false
+    }
+    
+}
 
 salesRoutes.post('/addsale', (req, res, next) => {
     if( !req.isAuthenticated() ){
@@ -106,6 +124,8 @@ salesRoutes.put('/editsale', (req, res, next)=> {
         id,
         entryDate
     } = req.body
+
+
     const editSaleQry = 'UPDATE sales SET customer_number = $1, campaign_id = $2,\
     sale_name = $3, price = $4, discount = $5, tax = $6, commission = $7, employee_id =$8, entry_date = $9\
     WHERE id = $10'
@@ -113,8 +133,12 @@ salesRoutes.put('/editsale', (req, res, next)=> {
     db.query(
         editSaleQry,
         [customerNumber, campaignId, saleName, price, discount, tax, commission, employeeId, entryDate, id],
-        (err) => {
+        async (err) => {
             if ( err ) return next(createError.BadRequest('Unable to edit sale'))
+
+            const logsUpdated = await updateLogsAfterEdit(employeeId, entryDate)
+            
+            if ( !logsUpdated ) console.log('failed to update logs after sale edit')
             
             return res.status(200).json({
                 message: 'succesfully updated the sale'

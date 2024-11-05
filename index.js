@@ -140,8 +140,13 @@ app.get('/notauthorized', (req, res, next)=>{
 }) 
     
 
-app.delete("/logout", (req, res) => {
+app.delete("/logout", (req, res, next) => {
     if(req.isAuthenticated()){
+        const currentDate = getCurrentDateTme()
+        const qry = 'UPDATE daily_logs SET logout_time = $1 WHERE employee_id = $2'
+        db.query(qry, [currentDate, req.user.id], err => {
+            if ( err ) next(createError.InternalServerError())
+        })
         return req.logOut((err)=>{
             if (err) {return next(createError.InternalServerError())}
             return res.status(200).json({

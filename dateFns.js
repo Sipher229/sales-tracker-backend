@@ -1,11 +1,11 @@
-import {differenceInHours} from 'date-fns'
+import {differenceInHours, differenceInMinutes} from 'date-fns'
 
 const getCurrentDateTme = () => {
     return new Date().toLocaleString('sv-SE') 
 }
 
-const getDifferenceInHours = (laterDate, earlierDate ) =>  {
-    return differenceInHours(laterDate, earlierDate)
+const getDifferenceInMinutes = (laterDate, earlierDate) => {
+    return differenceInMinutes(laterDate, earlierDate)
 }
 
 const getCurrentDate = () => {
@@ -13,4 +13,4 @@ const getCurrentDate = () => {
 }
 
 
-export {getCurrentDateTme, differenceInHours, getCurrentDate}
+export {getCurrentDateTme, differenceInHours, getCurrentDate, getDifferenceInMinutes}

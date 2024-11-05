@@ -3,11 +3,14 @@ import createError from 'http-errors'
 import db from '../dbconnection.js'
 import bcrypt from 'bcrypt'
 import 'dotenv/config'
-import { getCurrentDate } from '../dateFns.js'
+import { differenceInHours, getCurrentDate, getCurrentDateTme } from '../dateFns.js'
+import sendEmail from '../sendEmail.js'
 
 
 const employeeRouter = express.Router()
 const saltRounds = 10
+
+// ============================== helper functions =====================================
 
 const verifyEmailExists = async (email) => {
     try {
@@ -22,6 +25,48 @@ const verifyEmailExists = async (email) => {
     }
     
 }
+
+const generateOtp = () => {
+    const length = 6
+    let otp = ''
+
+    for(let i = 0; i <length; i++) {
+        const randomNumber = Math.floor(Math.random() * 9)
+        otp += randomNumber
+    }
+    return otp
+}
+
+const verifyOtpExists = async (id) => {
+    const qry = 
+    'SELECT * FROM otps WHERE id = $1'
+    const validFor = 30
+
+    try{
+        const response = await db.query(qry, [id])
+
+        if (response.rows !== 0){
+            const createdAt = response.rows[0].created_at
+            const currentTime = getCurrentDateTme()
+            const timeDifference = differenceInHours(currentTime, createdAt)
+
+            if (timeDifference > validFor) {
+                
+                return false
+            }
+            return true
+        }
+        else{
+            return false
+        }
+    }
+    catch(error){
+        return false
+    }
+}
+// ---------------------------------------------------------------------------------------
+
+// ============================================ routes =======================================
 
 employeeRouter.post('/addemployee', async (req, res, next) => {
 
@@ -54,7 +99,7 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
             db.query(registerQry, [firstName, lastName, employeeNumber, username, 
                 hash, employeeRole, managerId],
                 
-                (error, result)=>{
+                (error, response)=>{
                     if (error) {
                         next(createError.BadRequest(error.message))
                     }
@@ -240,6 +285,7 @@ employeeRouter.patch('/edit/shiftduration', (req, res, next) => {
         })
     })
 })
+
 employeeRouter.patch('/edit/shiftduration/manager', (req, res, next) => {
     if ( !req.isAuthenticated() ) return next(createError.Unauthorized())
 
@@ -299,12 +345,128 @@ employeeRouter.get('/getsubordinates/:id', (req, res, next) => {
 
 })
 
-employeeRouter.post('/confirmemail', (req, res, next) => {
-    return next(createError.NotImplemented())
+employeeRouter.post('/confirmemail', async (req, res, next) => {
+    const {username} = req.body
+    const emailExists = await verifyEmailExists(username)
+    if ( !emailExists ) return next(createError.Unauthorized())
+
+    const otp = generateOtp()
+    const createdAt = getCurrentDateTme()
+    const htmlEmail = `<p>Please use the following passcode to confirm your email\
+    in the weedman sales tracker: <br> <b>${otp}</b> <br> Please note that the code is only\
+    valid for 30 minutes <br> <br> Kind regards, <br> Weedman Sales Tracker Team</p>`
+
+    const qry = 
+    'INSERT INTO otps(id, otp_value, created_at) VALUES(default, $1, $2) RETURNING id'
+
+    db.query(qry, [otp, createdAt], async (err, result) => {
+        if( err ) return next(createError.InternalServerError())
+        
+        // send otp via email
+        const emailSent = await sendEmail(htmlEmail, username)
+
+        if (!emailSent) return next(createError.InternalServerError())
+
+        return res.status(200).json({
+            message: 'OTP sent successfully',
+            requestedData: result.rows
+        })
+    })
 })
 
-employeeRouter.post('/resetpassword', (req, res, next) => {
-    return next(createError.NotImplemented())
+employeeRouter.post('/verifyotp', (req, res, next) => {
+    const {userOtp, id} = req.body
+    const otp = userOtp.toString()
+    const validFor = 30
+    const qry = 
+    'SELECT * FROM otps WHERE id = $1'
+
+    db.query(qry, [id], async (err, result) => {
+        if( err ) return next( createError.BadRequest() )
+        
+        const validOtp = result.rows[0].otp_value
+        const createdAt = result.rows[0].created_at
+        const currentTime = getCurrentDateTme()
+        const timeDifference = differenceInHours(currentTime, createdAt)
+        
+        if (validOtp !== otp) {
+            
+            try{
+                await db.query('DELETE FROM otps WHERE id = $1', [id])
+
+                return next(createError.Conflict('Incorrect passcode'))
+            }catch(error){
+                console.log(error.message)
+                return next(createError.InternalServerError())
+            }
+        }
+        if (timeDifference > validFor) {
+            
+            try{
+                await db.query('DELETE FROM otps WHERE id = $1', [id])
+
+                return next ( createError.Conflict('Passcode expired') )
+            }catch(error){
+                console.log(error.message)
+                return next(createError.InternalServerError())
+            }
+        }
+
+        return res.status(200).json({
+            message: 'Correct passcode',
+            otpId: result.rows[0].id
+        })
+
+    })
+})
+
+employeeRouter.post('/resetpassword', async (req, res, next) => {
+    const {newPassword, employeeId, otpId} = req.body
+
+    const otpExists = await verifyOtpExists(otpId)
+
+    const qry = 
+    'UPDATE employees SET password = $1 WHERE id = $2'
+    if (otpExists){
+
+        db.query('DELETE FROM otps WHERE id = $1', [otpId], err => {
+            if ( err ) return next(createError.InternalServerError())
+        })
+
+        bcrypt.hash(newPassword, saltRounds, (err, hash) => {
+            if ( err ) return next( createError.InternalServerError())
+    
+            db.query(qry, [hash, employeeId], (err, result) => {
+                if ( err ) return next ( createError.InternalServerError() )
+    
+                return res.status(200).json({
+                    message: 'Password updated successfully'
+                })
+            })
+        })
+    }
+    else{
+        return next(createError.Forbidden())
+    }
+
+})
+
+employeeRouter.get('/resendotp', async (req, res, next) => {
+    const {otpId} = req.body
+
+    const otpExits = await verifyOtpExists(otpId)
+
+    if (otpExits) {
+        const newOtp = generateOtp()
+        res.status(200).json({
+            message: 'Otp generated  successfully',
+            otp: newOtp
+        })
+    }
+    else
+    {
+        return next( createError.Forbidden() )
+    }
 })
 export default employeeRouter
 
