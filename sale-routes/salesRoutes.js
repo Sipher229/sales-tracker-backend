@@ -61,7 +61,6 @@ salesRoutes.post('/addsale', (req, res, next) => {
         loginTime
     } = req.body
 
-    if ( !loginTime ) return next(createError.BadRequest('login time should be included in the request body'))
     const loginDate = getCurrentDate()
 
     const currentTime = getCurrentDateTme()
@@ -125,7 +124,6 @@ salesRoutes.put('/editsale', (req, res, next)=> {
         entryDate
     } = req.body
 
-
     const editSaleQry = 'UPDATE sales SET customer_number = $1, campaign_id = $2,\
     sale_name = $3, price = $4, discount = $5, tax = $6, commission = $7, employee_id =$8, entry_date = $9\
     WHERE id = $10'
@@ -134,7 +132,7 @@ salesRoutes.put('/editsale', (req, res, next)=> {
         editSaleQry,
         [customerNumber, campaignId, saleName, price, discount, tax, commission, employeeId, entryDate, id],
         async (err) => {
-            if ( err ) return next(createError.BadRequest('Unable to edit sale'))
+            if ( err ) return next(createError.BadRequest(err.message))
 
             const logsUpdated = await updateLogsAfterEdit(employeeId, entryDate)
             
