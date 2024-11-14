@@ -1,4 +1,4 @@
-import express, { response } from 'express'
+import express from 'express'
 import 'dotenv/config'
 import cors from 'cors'
 import createError from 'http-errors'
@@ -13,6 +13,7 @@ import goalsRouter from './goals-routes/goalsRoutes.js'
 import campaignsRouter from './campaigns-router/campaignsRouter.js'
 import employeeRouter from './employee-routes/employeeRouter.js'
 import {getCurrentDate, getCurrentDateTme} from './dateFns.js'
+import logsRouter from './log-router/logsRouter.js'
 
 
 const app = express()
@@ -45,6 +46,7 @@ app.use('/sales', salesRoutes)
 app.use('/goals', goalsRouter)
 app.use('/campaigns', campaignsRouter)
 app.use('/employees', employeeRouter)
+app.use('/logs', logsRouter)
 
 app.post('/login', passport.authenticate('local', {
     successRedirect: '/employees/getemployee',
@@ -107,13 +109,12 @@ passport.use(new Strategy( async function verify(username, password, done) {
                 }
                 else {
                     if(correct){
-            
                         if ( !loggedInToday ){
                             await updateLoginTime(loginDate, timeAndDate, result.rows[0].id)
                         
                         }
-
                         return done(null, result.rows[0])
+                        
                     }
                     else {
                         return done(null, false)
@@ -135,7 +136,6 @@ passport.deserializeUser((user, done) => {
 
 
 app.get('/notauthorized', (req, res, next)=>{
-    console.log('unauthorized')
     return next(createError.Unauthorized("Wrong email or password"))
 }) 
     

@@ -106,7 +106,7 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
                     else{
                         res.status(200).json({
                             message: "successfully registered the employee",
-                            employeeId: result.rows[0].id
+                            usename: result.rows[0].id
                         })
                     }
                 }
@@ -169,20 +169,24 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
+
     else{
+        const loginDate = getCurrentDate()
         const empId = req.user.id
 
         const getEmployeeQry = 
-        'SELECT employees.id as employeeId, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
-        campaigns.name as campaignName, shift_duration, login_time, sales_per_hour, daily_logs.commission as closingCommission\
-        FROM campaigns FULL JOIN goals ON goals.id = campaigns.goal_id FULL JOIN employees\
-        ON campaigns.id = employees.campaign_id FULL JOIN daily_logs ON employees.id = daily_logs.employee_id\
-        WHERE employees.id = $1'
+        "SELECT employees.id as id, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
+        goals.hourly_decisions as hourlyDecisions, goals.hourly_sales as hourlySales, \
+        campaigns.name as campaignName, shift_duration, login_time AT TIME ZONE 'UTC' AT TIME ZONE 'Canada/Eastern' as login_time, sales_per_hour, daily_logs.commission as closingCommission\
+        FROM campaigns INNER JOIN goals ON goals.id = campaigns.goal_id RIGHT JOIN employees\
+        ON campaigns.id = employees.campaign_id INNER JOIN daily_logs ON employees.id = daily_logs.employee_id\
+        WHERE employees.id = $1 AND login_date = $2"
         
-        db.query(getEmployeeQry, [empId], (err, result) => {
+        db.query(getEmployeeQry, [empId, loginDate], (err, result) => {
             if (err) return next(createError.BadRequest(err.message))
             
             const employee = result.rows
+            
         
             return res.status(200).json({
                 requestedData: employee,
@@ -369,64 +373,68 @@ employeeRouter.post('/confirmemail', async (req, res, next) => {
 
         return res.status(200).json({
             message: 'OTP sent successfully',
-            requestedData: result.rows
+            otpId: result.rows[0].id
         })
     })
 })
 
 employeeRouter.post('/verifyotp', (req, res, next) => {
-    const {userOtp, id} = req.body
-    const otp = userOtp.toString()
+    const {otp, id} = req.body
     const validFor = 30
     const qry = 
     'SELECT * FROM otps WHERE id = $1'
 
     db.query(qry, [id], async (err, result) => {
         if( err ) return next( createError.BadRequest() )
-        
-        const validOtp = result.rows[0].otp_value
-        const createdAt = result.rows[0].created_at
-        const currentTime = getCurrentDateTme()
-        const timeDifference = differenceInHours(currentTime, createdAt)
-        
-        if (validOtp !== otp) {
+        if (result.rows.length !== 0){
+
+            const validOtp = result.rows[0].otp_value
+            const createdAt = result.rows[0].created_at
+            const currentTime = getCurrentDateTme()
+            const timeDifference = differenceInHours(currentTime, createdAt)
             
-            try{
-                await db.query('DELETE FROM otps WHERE id = $1', [id])
-
-                return next(createError.Conflict('Incorrect passcode'))
-            }catch(error){
-                console.log(error.message)
-                return next(createError.InternalServerError())
+            if (validOtp !== otp) {
+                
+                try{
+                    await db.query('DELETE FROM otps WHERE id = $1', [id])
+    
+                    return next(createError.Conflict('Incorrect passcode'))
+                }catch(error){
+                    console.log(error.message)
+                    return next(createError.InternalServerError())
+                }
             }
-        }
-        if (timeDifference > validFor) {
-            
-            try{
-                await db.query('DELETE FROM otps WHERE id = $1', [id])
-
-                return next ( createError.Conflict('Passcode expired') )
-            }catch(error){
-                console.log(error.message)
-                return next(createError.InternalServerError())
+            if (timeDifference > validFor) {
+                
+                try{
+                    await db.query('DELETE FROM otps WHERE id = $1', [id])
+    
+                    return next ( createError.Conflict('Passcode expired') )
+                }catch(error){
+                    console.log(error.message)
+                    return next(createError.InternalServerError())
+                }
             }
-        }
 
-        return res.status(200).json({
-            message: 'Correct passcode',
-            otpId: result.rows[0].id
-        })
+            return res.status(200).json({
+                message: 'Correct passcode',
+                otpId: result.rows[0].id
+            })
+        }
+        else{
+            return next(createError.BadRequest())
+        }
 
     })
 })
 
-employeeRouter.post('/resetpassword', async (req, res, next) => {
-    const {newPassword, employeeId, otpId} = req.body
+employeeRouter.put('/resetpassword', async (req, res, next) => {
+    const {newPassword, username, otpId} = req.body
 
     const otpExists = await verifyOtpExists(otpId)
 
     const qry = 
-    'UPDATE employees SET password = $1 WHERE id = $2'
+    'UPDATE employees SET password = $1 WHERE email = $2'
     if (otpExists){
 
         db.query('DELETE FROM otps WHERE id = $1', [otpId], err => {
@@ -436,7 +444,7 @@ employeeRouter.post('/resetpassword', async (req, res, next) => {
         bcrypt.hash(newPassword, saltRounds, (err, hash) => {
             if ( err ) return next( createError.InternalServerError())
     
-            db.query(qry, [hash, employeeId], (err, result) => {
+            db.query(qry, [hash, username], (err, result) => {
                 if ( err ) return next ( createError.InternalServerError() )
     
                 return res.status(200).json({
@@ -452,11 +460,11 @@ employeeRouter.post('/resetpassword', async (req, res, next) => {
 })
 
 employeeRouter.get('/resendotp', async (req, res, next) => {
-    const {otpId} = req.body
+    const {username} = req.body
 
-    const otpExits = await verifyOtpExists(otpId)
+    const emailExists = await verifyEmailExists(username)
 
-    if (otpExits) {
+    if (emailExists) {
         const newOtp = generateOtp()
         res.status(200).json({
             message: 'Otp generated  successfully',
