@@ -1,27 +1,27 @@
-import express from 'express'
+import express, { response } from 'express'
 import db from '../dbconnection.js'
 import createError from 'http-errors'
 import {differenceInHours, getCurrentDateTme, getCurrentDate} from '../dateFns.js'
 
 const salesRoutes = express.Router()
 
-const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate) => {
+const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate, shiftDuration) => {
     let hours = hoursLoggedIn
-    if (hoursLoggedIn  === 0){
+    if (hoursLoggedIn  < 1){
         hours = 1
     }
-    else if (hoursLoggedIn > 8){
-        hours = 8
+    if (hoursLoggedIn > (shiftDuration-1)){
+        hours = shiftDuration
     }
     const qry = 
     'UPDATE daily_logs SET\
-    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/$2),\
-    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $3)\
-    WHERE login_date = $4 AND employee_id = $5'
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1 AND entry_date = $2)::float/$3),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $4 AND entry_date = $5)\
+    WHERE login_date = $6 AND employee_id = $7 RETURNING sales_per_hour'
 
     try {
-        await db.query(qry, [employeeId, hours, employeeId, loginDate, employeeId])
-        return true
+        const response = await db.query(qry, [employeeId, loginDate, hours, employeeId, loginDate, loginDate, employeeId])
+        return response.rows[0].sales_per_hour
     } catch (error) {
         console.log(error.message)
         return false
@@ -45,7 +45,22 @@ const updateLogsAfterEdit = async (employeeId, entryDate) => {
     
 }
 
-salesRoutes.post('/addsale', (req, res, next) => {
+const getLoginTime = async (id, loginDate)=> {
+    const qry = "SELECT login_time AT TIME ZONE 'Canada/Eastern' as login_time, shift_duration\
+    from daily_logs WHERE login_date = $1 and employee_id = $2"
+
+    try {
+        const response = await db.query(qry, [loginDate, id])
+        return {
+            loginTime: response.rows[0].login_time, 
+            shiftDuration: response.rows[0].shift_duration}
+    } catch (error) {
+        console.log(error.message)
+        return false
+    }
+}
+
+salesRoutes.post('/addsale', async (req, res, next) => {
     if( !req.isAuthenticated() ){
         return next(createError.Unauthorized())
     }
@@ -58,11 +73,13 @@ salesRoutes.post('/addsale', (req, res, next) => {
         commission, 
         tax,
         employeeId,
-        loginTime
     } = req.body
 
     const loginDate = getCurrentDate()
+    const {loginTime, shiftDuration} = await getLoginTime(req.user.id, loginDate)
 
+    if (!loginTime) return next(createError.InternalServerError())
+        
     const currentTime = getCurrentDateTme()
     const hoursLoggedIn = differenceInHours(currentTime, loginTime)
     // console.log(loginTime + " " + currentTime)
@@ -77,9 +94,10 @@ salesRoutes.post('/addsale', (req, res, next) => {
         addSaleQry,
         [customerNumber, campaignId, name, price, discount, tax, commission, employeeId, loginDate],
         async (err, result) => {
+            
             if( err ) return next(createError.BadRequest(err.message))
 
-            const logsUpdated = await updateSalesForLogs(hoursLoggedIn, employeeId, loginDate)
+            const logsUpdated = await updateSalesForLogs(hoursLoggedIn, employeeId, loginDate, shiftDuration)
 
             if (!logsUpdated) console.log('failed to update logs')
             
@@ -88,6 +106,40 @@ salesRoutes.post('/addsale', (req, res, next) => {
             })
         }
     )
+})
+
+salesRoutes.patch('/update/salesperhour', async (req, res, next) => {
+    if (!req.isAuthenticated() ) return next(createError.Unauthorized())
+
+    const loginDate = getCurrentDate()
+    const {loginTime, shiftDuration} = await getLoginTime(req.user.id, loginDate)
+    if (!loginTime) {
+        return res.status(200).json({
+            message: 'Unable to update login time. Internal server error',
+            success: false
+        })
+    }
+    const currentTime = getCurrentDateTme()
+    const hoursLoggedIn = differenceInHours(currentTime, loginTime)
+    
+
+    const response = await updateSalesForLogs(hoursLoggedIn,req.user.id, loginDate, shiftDuration)
+
+    if (response) {
+        return res.status(200).json({
+            message: 'Update successful',
+            salesPerHour: response,
+            success: true
+        })
+    }
+
+    else{
+        return res.status(200).json({
+            message: 'Unable to update login time. Internal server error',
+            succss: false
+        })
+    }
+    
 })
 
 salesRoutes.delete('/deletesale/:id', (req, res, next) => {
@@ -114,7 +166,7 @@ salesRoutes.put('/editsale', (req, res, next)=> {
     const {
         customerNumber,
         campaignId,
-        saleName,
+        name,
         price,
         discount,
         commission, 
@@ -130,7 +182,7 @@ salesRoutes.put('/editsale', (req, res, next)=> {
 
     db.query(
         editSaleQry,
-        [customerNumber, campaignId, saleName, price, discount, tax, commission, employeeId, entryDate, id],
+        [customerNumber, campaignId, name, price, discount, tax, commission, employeeId, entryDate, id],
         async (err) => {
             if ( err ) return next(createError.BadRequest(err.message))
 
@@ -145,27 +197,31 @@ salesRoutes.put('/editsale', (req, res, next)=> {
     )
 })
 
-salesRoutes.get('/getsale/all', (req, res, next) => {
-    if(!req,isAuthenticated()){
+salesRoutes.get('/getsales/all', (req, res, next) => {
+    if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
+    
     const getSalesQry = 
-    'SELECT * FROM SALES WHERE employee_id = $1 ORDER BY commission DESC'
+    'SELECT sale_name, sales.id as id, customer_number, sales.commission, sales.tax, sales.price, sales.discount, sales.entry_date, campaigns.name FROM SALES\
+    INNER JOIN campaigns ON campaigns.id = sales.campaign_id  WHERE sales.employee_id = $1\
+    ORDER BY sales.commission DESC'
     const empId = req.user.id
     db.query(getSalesQry, [empId], (err, result) => {
         if ( err ) {
-            return next(createError.BadRequest())
+            console.log(err.message)
+            return next(createError.BadRequest(err.message))
         }
         const employeeSales = result.rows
         return res.status(200).json({
             message: 'retrieved data successfully',
-            sales: employeeSales
+            requestedData: employeeSales
         })
     })
 })
 
-salesRoutes.get('/getsalesbydate/:date', (req, res, next) => {
-    if(!req,isAuthenticated()){
+salesRoutes.get('/getsales/:date', (req, res, next) => {
+    if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
     const desiredDate = req.params.date
@@ -177,7 +233,7 @@ salesRoutes.get('/getsalesbydate/:date', (req, res, next) => {
         const resultData = result.rows
         return res.status(200).json({
             message: 'retrieved data successfully',
-            sales: resultData
+            requestedData: resultData
         })
     } )
 })

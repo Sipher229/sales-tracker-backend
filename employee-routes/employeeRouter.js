@@ -84,11 +84,12 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
         username, 
         password,
         employeeRole,
+        campaignId
     } = req.body
     const managerId = req.user.id
     const registerQry = 
-    'INSERT INTO employees(id, first_name, last_name, employee_number, email, password, employee_role, manager_id)\
-    VALUES(DEFAULT, $1, $2, $3, $4, $5, $6, $7) RETURNING id'
+    'INSERT INTO employees(id, first_name, last_name, employee_number, email, password, employee_role, manager_id, campaign_id)\
+    VALUES(DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id'
 
     const emailExists = await verifyEmailExists(username)
     if(!emailExists){
@@ -97,9 +98,9 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
                 next(createError.InternalServerError())
             }
             db.query(registerQry, [firstName, lastName, employeeNumber, username, 
-                hash, employeeRole, managerId],
+                hash, employeeRole, managerId, campaignId],
                 
-                (error, response)=>{
+                (error, result)=>{
                     if (error) {
                         next(createError.BadRequest(error.message))
                     }
@@ -165,6 +166,38 @@ employeeRouter.post('/addemployee/:pin', async (req, res, next) => {
     }
 })
 
+employeeRouter.patch('/editemployee/:id', (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized())
+
+    if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
+
+    const id = req.params.id
+    const {
+        firstName,
+        lastName,
+        username,
+        employeeRole,
+        employeeNumber,
+        campaignId,
+    } = req.body
+
+    const editQry = 
+    'UPDATE employees SET first_name = $1 , last_name=$2, email=$3,\
+    employee_role=$4, employee_number=$5, campaign_id =$6\
+    WHERE id = $7'
+
+    db.query(editQry, [firstName, lastName, username, employeeRole, employeeNumber, campaignId, id],
+    (err) => {
+    if (err) {
+        return next(createError.BadRequest(err.message))
+    }
+
+        res.status( 200 ).json({
+            message: 'Changes saved successfully',
+        })
+    })
+})
+
 employeeRouter.get('/getemployee', async  (req, res, next) => {
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
@@ -177,7 +210,7 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
         const getEmployeeQry = 
         "SELECT employees.id as id, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
         goals.hourly_decisions as hourlyDecisions, goals.hourly_sales as hourlySales, \
-        campaigns.name as campaignName, shift_duration, login_time AT TIME ZONE 'UTC' AT TIME ZONE 'Canada/Eastern' as login_time, sales_per_hour, daily_logs.commission as closingCommission\
+        campaigns.name as campaignName, shift_duration, employees.campaign_id as campaign_id, login_time AT TIME ZONE 'UTC' AT TIME ZONE 'Canada/Eastern' as login_time, sales_per_hour, daily_logs.commission as closingCommission\
         FROM campaigns INNER JOIN goals ON goals.id = campaigns.goal_id RIGHT JOIN employees\
         ON campaigns.id = employees.campaign_id INNER JOIN daily_logs ON employees.id = daily_logs.employee_id\
         WHERE employees.id = $1 AND login_date = $2"
@@ -196,6 +229,35 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
 
     }
 
+})
+
+employeeRouter.get('/getemployee/:id', async (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized())
+
+    const loginDate = getCurrentDate()
+    const empId = req.params.id
+
+    const getEmployeeQry = 
+    "SELECT employees.id as id, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
+    goals.hourly_decisions as hourlyDecisions, goals.hourly_sales as hourlySales, \
+    campaigns.name as campaignName, employees.campaign_id as campaign_id, shift_duration, login_time AT TIME ZONE 'UTC' AT TIME ZONE 'Canada/Eastern' as login_time, sales_per_hour, daily_logs.commission as closingCommission\
+    FROM campaigns INNER JOIN goals ON goals.id = campaigns.goal_id RIGHT JOIN employees\
+    ON campaigns.id = employees.campaign_id INNER JOIN daily_logs ON employees.id = daily_logs.employee_id\
+    WHERE employees.id = $1 AND login_date = $2"
+    
+    db.query(getEmployeeQry, [empId, loginDate], (err, result) => {
+        if (err) return next(createError.BadRequest(err.message))
+        
+        const employee = result.rows
+        
+    
+        return res.status(200).json({
+            requestedData: employee,
+            message: 'retrieved data successfully'
+        })
+    })
+    
+    
 })
 
 employeeRouter.get('/getmanagers', async (req, res, next) => {
@@ -275,17 +337,19 @@ employeeRouter.patch('/assign/campaign', (req, res, next) => {
 })
 
 employeeRouter.patch('/edit/shiftduration', (req, res, next) => {
+    if( !req.isAuthenticated() ) return next.Unauthorized() 
     const {shiftDuration} = req.body
     const loginDate = getCurrentDate()
 
     const qry = 
-    'UPDATE daily_logs SET shift_duration = $1 WHERE login_date = $2'
+    'UPDATE daily_logs SET shift_duration = $1 WHERE employee_id = $2 AND login_date = $3 RETURNING shift_duration'
 
-    db.query(qry, [shiftDuration, loginDate], (err, result) => {
+    db.query(qry, [shiftDuration, req.user.id, loginDate], (err, result) => {
         if ( err ) return next(createError.BadRequest())
 
         return res.status(200).json({
             message: "Information updated successfully",
+            newDuration: result.rows[0].shift_duration
         })
     })
 })
@@ -325,6 +389,31 @@ employeeRouter.patch('/edit/names', (req, res, next) => {
     })
 })
 
+employeeRouter.get('/getemployees/all', (req, res, next) => {
+    if ( !req.isAuthenticated() ) return next( createError.Unauthorized() )
+
+    if ( req.user.employee_role !== 'manager' ) return next ( createError.Forbidden() )
+
+
+    const qry = 
+    'SELECT first_name, last_name, email, employee_role,\
+    employee_number, employees.id as id, campaigns.name as campaign_name,\
+    goals.name as goal_name, manager_id, employees.campaign_id as campaign_id\
+    FROM employees\
+    INNER JOIN campaigns ON campaigns.id = employees.campaign_id\
+    INNER JOIN goals ON goals.id = campaigns.goal_id'
+    
+    db.query(qry, (err, result) => {
+        if ( err ) return next( createError.BadRequest(err.message) )
+        return res.status(200).json({
+            message: 'data retrieved successfull',
+            requestedData: result.rows
+        })
+    })
+
+
+})
+
 employeeRouter.get('/getsubordinates/:id', (req, res, next) => {
     if ( !req.isAuthenticated() ) return next( createError.Unauthorized() )
 
@@ -333,9 +422,12 @@ employeeRouter.get('/getsubordinates/:id', (req, res, next) => {
     const {id} = req.params
 
     const qry = 
-    'SELECT first_name, last_name, email, shift_duration, employee_role,\
-    employee_number, employees.id as id, campaign_id, manager_id, alt_campaign_id, login_time\
-    FROM employees INNER JOIN daily_logs ON employees.id = daily_logs.employee_id\
+    'SELECT first_name, last_name, email, employee_role,\
+    employee_number, employees.id as id, campaigns.name as campaign_name,\
+    goals.name as goal_name, manager_id, employees.campaign_id as campaign_id\
+    FROM employees\
+    INNER JOIN campaigns ON campaigns.id = employees.campaign_id\
+    INNER JOIN goals ON goals.id = campaigns.goal_id\
     WHERE manager_id =$1'   
     
     db.query(qry, [id], (err, result) => {

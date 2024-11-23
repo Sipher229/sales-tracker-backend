@@ -1,6 +1,7 @@
 import express from 'express'
 import db from '../dbconnection.js'
 import createError from 'http-errors'
+import { getCurrentDate } from '../dateFns.js'
 
 const campaignsRouter = express.Router()
 
@@ -8,14 +9,18 @@ campaignsRouter.post('/addcampaign', (req, res, next) => {
     if( !req.isAuthenticated() ){
         return next(createError.Unauthorized() )
     }
+
+    if( req.user.employee_role !== 'manager' ) {
+        return next(createError.Forbidden())
+    }
     const {
         name,
         commission,
         tax,
         goalId,
-        employeeId,
-        entryDate
     } = req.body
+    const employeeId = req.user.id
+    const entryDate = getCurrentDate()
 
     const addCampaignQry =
     'INSERT INTO campaigns(name, commission,\
@@ -52,31 +57,32 @@ campaignsRouter.delete('/delete/:id', (req, res, next) => {
     })
 })
 
-campaignsRouter.put('/editcampaign', (req, res, next) => {
+campaignsRouter.patch('/editcampaign/:id', (req, res, next) => {
     if( !req.isAuthenticated() ) {
         return next(createError.Unauthorized())
     }
+
+    if ( req.user.employee_role !== 'manager') return next(createError.Forbidden())
 
     const {
         name,
         commission,
         tax,
-        discount, 
-        gaolId,
-        employeeId,
-        entryDate,
-        id
+        goalId,
     } = req.body
+   
+    const employeeId = req.user.id
+    const id = req.params.id
 
-    const editCampaignQry = 'UPDATE sales SET name = $1, goal_id = $2,\
-    discount = $3, tax = $4, commission = $5, employee_id =$6, entry_date = $7\
-    WHERE id = $8'
+    const editCampaignQry = 'UPDATE campaigns SET name = $1, goal_id = $2,\
+    tax = $3, commission = $4, employee_id =$5\
+    WHERE id = $6'
 
     db.query(
-        editSaleQry,
-        [name, gaolId, discount, tax, commission, employeeId, entryDate, id],
+        editCampaignQry,
+        [name, goalId, tax, commission, employeeId, id],
         (err) => {
-            if ( err ) return next(createError.BadRequest('Unable to edit campaign'))
+            if ( err ) return next(createError.BadRequest(err.message))
             
             return res.status(200).json({
                 message: 'changes saved successfully'
@@ -85,16 +91,19 @@ campaignsRouter.put('/editcampaign', (req, res, next) => {
     )
 })
 
-campaignsRouter.get('/getcampaign/all', (req, res, next) => {
+campaignsRouter.get('/getcampaigns/all', (req, res, next) => {
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
     const getSalesQry = 
-    'SELECT * FROM campaigns ORDER BY entry_date DESC'
+    'SELECT campaigns.id as campaign_id, campaigns.name as campaign_name, campaigns.entry_date as entry_date,\
+    commission, tax, goals.name as goal_name, hourly_sales, hourly_decisions, campaigns.goal_id as goal_id\
+    FROM campaigns\
+    INNER JOIN goals ON goals.id = campaigns.goal_id  ORDER BY campaigns.entry_date DESC'
 
     db.query(getSalesQry, (err, result) => {
         if ( err ) {
-            return next(createError.BadRequest())
+            return next(createError.BadRequest(err.message))
         }
         const campaigns = result.rows
         return res.status(200).json({

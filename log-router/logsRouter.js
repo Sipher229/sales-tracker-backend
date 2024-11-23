@@ -14,7 +14,7 @@ logsRouter.get('/getlogs', (req, res, next) => {
     INNER JOIN employees ON daily_logs.employee_id = employees.id\
     INNER JOIN campaigns ON campaigns.id = employees.campaign_id\
     WHERE login_date = $1 AND employee_role = 'sales associate'\
-    ORDER BY sales_per_hour DESC\ "
+    ORDER BY sales_per_hour DESC "
 
     const loginDate = getCurrentDate()
 
@@ -26,6 +26,70 @@ logsRouter.get('/getlogs', (req, res, next) => {
             requestedData: result.rows
         })
 
+    })
+})
+
+logsRouter.get('/getchartdata', (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized())
+    
+    const currentDate = getCurrentDate()
+    
+
+    const qry = 
+    'SELECT login_date, sales_per_hour FROM daily_logs\
+    WHERE employee_id = $1 AND login_date < $2 ORDER BY login_date LIMIT 9'
+
+    db.query(qry, [req.user.id, currentDate], (err, result) => {
+        if ( err ) return next(createError.InternalServerError())
+
+
+        return res.status(200).json({
+            message: "Chart data retrieved successfully",
+            requestedData: result.rows
+        })
+    })
+})
+logsRouter.get('/getchartdata/:id', (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized())
+    
+    if (req.user.employee_role !== 'manager') {
+        return next(createError.Forbidden())
+    }
+    
+    const currentDate = getCurrentDate()
+    const {id} = req.params
+    
+    const qry = 
+    'SELECT login_date, sales_per_hour FROM daily_logs\
+    WHERE employee_id = $1 AND login_date < $2 ORDER BY login_date LIMIT 9'
+
+    db.query(qry, [id, currentDate], (err, result) => {
+        if ( err ) return next(createError.InternalServerError())
+
+
+        return res.status(200).json({
+            message: "Chart data retrieved successfully",
+            requestedData: result.rows
+        })
+    })
+})
+
+logsRouter.get('/gechartData/:date', (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized())
+        
+    const {date} = req.params
+    const qry = 
+    'SELECT login_date, sales_per_hour FROM daily_logs\
+    WHERE employee_id = $1 AND login_date < $2 ORDER BY login_date LIMIT 9'
+
+    db.query(qry, [req.user.id, date], (err, result) => {
+        if ( err ) return next(createError.InternalServerError())
+
+
+        return res.status(200).json({
+            message: "Chart data retrieved successfully",
+            requestedData: result.rows
+        })
     })
 })
 
