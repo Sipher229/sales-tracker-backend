@@ -569,5 +569,3 @@ employeeRouter.get('/resendotp', async (req, res, next) => {
     }
 })
 export default employeeRouter
-
-// update logs whenever a sale is edited or deleted
