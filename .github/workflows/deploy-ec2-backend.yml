@@ -20,7 +20,6 @@ jobs:
         username: ${{ secrets.EC2_USER }}
         key: ${{ secrets.EC2_KEY }}
         script: |
-          cd /path/to/backend
           git pull
           npm install
           # Set environment variables in the backend application
