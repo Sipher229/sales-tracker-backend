@@ -43,14 +43,14 @@ app.use(session({
 app.use(passport.initialize())
 app.use(passport.session())
 
-app.use('/sales', salesRoutes)
-app.use('/goals', goalsRouter)
-app.use('/campaigns', campaignsRouter)
-app.use('/employees', employeeRouter)
-app.use('/logs', logsRouter)
-app.use('/jobaids', jobAidRouter)
+app.use('api/sales', salesRoutes)
+app.use('api/goals', goalsRouter)
+app.use('api/campaigns', campaignsRouter)
+app.use('api/employees', employeeRouter)
+app.use('api/logs', logsRouter)
+app.use('api/jobaids', jobAidRouter)
 
-app.post('/login', passport.authenticate('local', {
+app.post('api/login', passport.authenticate('local', {
     successRedirect: '/employees/getemployee',
     failureRedirect: '/notauthorized'
 }))
@@ -137,12 +137,12 @@ passport.deserializeUser((user, done) => {
 })
 
 
-app.get('/notauthorized', (req, res, next)=>{
+app.get('api/notauthorized', (req, res, next)=>{
     return next(createError.Unauthorized("Wrong email or password"))
 }) 
     
 
-app.delete("/logout", (req, res, next) => {
+app.delete("api/logout", (req, res, next) => {
     if(req.isAuthenticated()){
         const currentDate = getCurrentDateTme()
         const qry = 'UPDATE daily_logs SET logout_time = $1 WHERE employee_id = $2'
