@@ -23,4 +23,10 @@ jobs:
           cd /path/to/backend
           git pull
           npm install
+          # Set environment variables in the backend application
+          export DB_USERNAME=${{ secrets.DB_USERNAME }}
+          export DB_NAME=${{ secrets.DB_NAME }}
+          export DB_PORT=${{ secrets.DB_PORT }}
+          export DB_PIN=${{ secrets.PORT }}
+          export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
           pm2 restart backend || pm2 start index.js --name backend
