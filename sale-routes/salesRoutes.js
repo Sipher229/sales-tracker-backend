@@ -31,12 +31,12 @@ const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate, shiftDur
 const updateLogsAfterEdit = async (employeeId, entryDate) => {
     const qry =
     'UPDATE daily_logs SET\
-    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/daily_logs.shift_duration),\
-    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $2)\
-    WHERE login_date = $3 AND employee_id = $4'
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $2)::float),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $3)\
+    WHERE login_date = $4 AND employee_id = $5'
 
     try {
-        await db.query(qry, [employeeId, employeeId, entryDate, employeeId])
+        await db.query(qry, [employeeId, employeeId, employeeId, entryDate, employeeId])
         return true
     } catch (error) {
         console.log(error.message)
@@ -142,15 +142,19 @@ salesRoutes.patch('/update/salesperhour', async (req, res, next) => {
     
 })
 
-salesRoutes.delete('/deletesale/:id', (req, res, next) => {
+salesRoutes.delete('/delete/:id', (req, res, next) => {
     if ( !req.isAuthenticated() ) {
         return next(createError.Unauthorized())
     }
     const id = req.params.id
+    const {entryDate} = req.body
     const deleteSaleQry = 'DELETE FROM sales WHERE id = $1'
 
-    db.query(deleteSaleQry, [id], (err, result) =>{
+    db.query(deleteSaleQry, [id], async (err, result) =>{
         if(err) return next(createError.BadRequest('could not delete'))
+
+        const updated = await updateLogsAfterEdit(req.user.id, entryDate)
+        if (!updated) console.log('failed to update sales after delete')
         
         return res.status(200).json({
             message: 'Successfully deleted sale',
@@ -159,7 +163,7 @@ salesRoutes.delete('/deletesale/:id', (req, res, next) => {
 
 })
 
-salesRoutes.put('/editsale', (req, res, next)=> {
+salesRoutes.patch('/editsale/:id', (req, res, next)=> {
     if( !req.isAuthenticated() ) {
         return next(createError.Unauthorized())
     }
@@ -171,20 +175,23 @@ salesRoutes.put('/editsale', (req, res, next)=> {
         discount,
         commission, 
         tax,
-        employeeId,
-        id,
-        entryDate
+        entryDate,
     } = req.body
+    const {id} = req.params
+    const employeeId = req.user.id
 
     const editSaleQry = 'UPDATE sales SET customer_number = $1, campaign_id = $2,\
-    sale_name = $3, price = $4, discount = $5, tax = $6, commission = $7, employee_id =$8, entry_date = $9\
-    WHERE id = $10'
+    sale_name = $3, price = $4, discount = $5, tax = $6, commission = $7\
+    WHERE id = $8'
 
     db.query(
         editSaleQry,
-        [customerNumber, campaignId, name, price, discount, tax, commission, employeeId, entryDate, id],
+        [customerNumber, campaignId, name, price, discount, tax, commission, id],
         async (err) => {
-            if ( err ) return next(createError.BadRequest(err.message))
+            if ( err ) {
+                console.log(err.message)
+                return next(createError.BadRequest(err.message))
+            }
 
             const logsUpdated = await updateLogsAfterEdit(employeeId, entryDate)
             
@@ -203,9 +210,9 @@ salesRoutes.get('/getsales/all', (req, res, next) => {
     }
     
     const getSalesQry = 
-    'SELECT sale_name, sales.id as id, customer_number, sales.commission, sales.tax, sales.price, sales.discount, sales.entry_date, campaigns.name FROM SALES\
+    'SELECT sale_name, sales.id as id, customer_number, sales.commission, sales.tax, sales.price, campaign_id, sales.discount, sales.entry_date, campaigns.name as name FROM SALES\
     INNER JOIN campaigns ON campaigns.id = sales.campaign_id  WHERE sales.employee_id = $1\
-    ORDER BY sales.commission DESC'
+    ORDER BY sales.entry_date DESC LIMIT 30'
     const empId = req.user.id
     db.query(getSalesQry, [empId], (err, result) => {
         if ( err ) {
@@ -226,9 +233,11 @@ salesRoutes.get('/getsales/:date', (req, res, next) => {
     }
     const desiredDate = req.params.date
     const getSalesQry = 
-    'SELECT * FROM SALES WHERE employee_id = $1 AND entry_date = $2'
+    'SELECT sale_name, sales.id as id, customer_number, sales.commission, sales.tax, sales.price, campaign_id,\
+    sales.discount, sales.entry_date, campaigns.name as name FROM SALES\
+    INNER JOIN campaigns ON campaigns.id = sales.campaign_id WHERE sales.employee_id = $1 AND sales.entry_date = $2 ORDER BY sales.commission DESC'
     db.query(getSalesQry, [req.user.id, desiredDate], (err, result) => {
-        if ( err ) return next(createError.BadRequest())
+        if ( err ) return next(createError.BadRequest(err.message))
         
         const resultData = result.rows
         return res.status(200).json({
@@ -239,15 +248,21 @@ salesRoutes.get('/getsales/:date', (req, res, next) => {
 })
 
 
-salesRoutes.get('/getsales/:id', (req, res, next) => {
+salesRoutes.get('/getsales/employee/:id', (req, res, next) => {
     if ( !req.isAuthenticated() ) return next( createError.Unauthorized() )
+    const getSalesQry = 
+    'SELECT sale_name, name, sales.commission, sales.tax,\
+    customer_number, discount, sales.entry_date, sales.id as id,\
+    sales.campaign_id as campaign_id, price FROM sales INNER JOIN campaigns ON\
+    campaign.id = sales.campaign_id WHERE id = $1'
+
+    const id = req.params.id
     
-    const getSalesQry = 'SELECT * FROM sales WHERE id = $1'
-
-    const {id} = req.params
-
     db.query(getSalesQry, [id], (err, result) => {
-        if ( err ) return next( createError.BadRequest() ) 
+        if ( err ) {
+            console.log(err.message)
+            return next( createError.BadRequest(err.message) )
+        } 
 
         return res.status(200).json({
             message: 'data retrieved successfully',

@@ -241,7 +241,7 @@ employeeRouter.get('/getemployee/:id', async (req, res, next) => {
     "SELECT employees.id as id, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
     goals.hourly_decisions as hourlyDecisions, goals.hourly_sales as hourlySales, \
     campaigns.name as campaignName, employees.campaign_id as campaign_id, shift_duration, login_time AT TIME ZONE 'UTC' AT TIME ZONE 'Canada/Eastern' as login_time, sales_per_hour, daily_logs.commission as closingCommission\
-    FROM campaigns INNER JOIN goals ON goals.id = campaigns.goal_id RIGHT JOIN employees\
+    FROM campaigns INNER JOIN goals ON goals.id = campaigns.goal_id LEFT JOIN employees\
     ON campaigns.id = employees.campaign_id INNER JOIN daily_logs ON employees.id = daily_logs.employee_id\
     WHERE employees.id = $1 AND login_date = $2"
     
@@ -400,8 +400,8 @@ employeeRouter.get('/getemployees/all', (req, res, next) => {
     employee_number, employees.id as id, campaigns.name as campaign_name,\
     goals.name as goal_name, manager_id, employees.campaign_id as campaign_id\
     FROM employees\
-    INNER JOIN campaigns ON campaigns.id = employees.campaign_id\
-    INNER JOIN goals ON goals.id = campaigns.goal_id'
+    FULL JOIN campaigns ON campaigns.id = employees.campaign_id\
+    INNER JOIN goals ON goals.id = campaigns.goal_id WHERE first_name IS NOT NULL '
     
     db.query(qry, (err, result) => {
         if ( err ) return next( createError.BadRequest(err.message) )

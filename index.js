@@ -14,6 +14,7 @@ import campaignsRouter from './campaigns-router/campaignsRouter.js'
 import employeeRouter from './employee-routes/employeeRouter.js'
 import {getCurrentDate, getCurrentDateTme} from './dateFns.js'
 import logsRouter from './log-router/logsRouter.js'
+import jobAidRouter from './jobAid-router/jobAidRouter.js'
 
 
 const app = express()
@@ -47,6 +48,7 @@ app.use('/goals', goalsRouter)
 app.use('/campaigns', campaignsRouter)
 app.use('/employees', employeeRouter)
 app.use('/logs', logsRouter)
+app.use('/jobaids', jobAidRouter)
 
 app.post('/login', passport.authenticate('local', {
     successRedirect: '/employees/getemployee',

@@ -44,6 +44,7 @@ goalsRouter.delete('/delete/:id', (req, res, next) => {
     if( !req.isAuthenticated() ){
         return next( createError.Unauthorized() )
     }
+    if (req.employee_role !== 'manager') return next(createError.Forbidden())
     const {id} = req.params.id
 
     const deleteGoalQry = 'DELETE FROM goals WHERE id = $1'
