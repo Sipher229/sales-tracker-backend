@@ -199,6 +199,7 @@ employeeRouter.patch('/editemployee/:id', (req, res, next) => {
 })
 
 employeeRouter.get('/getemployee', async  (req, res, next) => {
+    console.log('logging in...')
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
