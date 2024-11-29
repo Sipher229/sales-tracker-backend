@@ -24,7 +24,7 @@ const port = process.env.port || 3000
 app.use(bodyParser.urlencoded({extended: true}))
 
 app.use(cors({
-    origin: 'http://localhost:5173',
+    origin: ['http://localhost:5173', 'http://99.79.9.197'],
     credentials: true,
     optionSuccessStatus: '200',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
