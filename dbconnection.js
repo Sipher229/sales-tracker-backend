@@ -8,6 +8,7 @@ const db = new pg.Client({
     password: process.env.DB_PASSWORD,
     port: 5432
 })
+console.log(process.env.DB_PASSWORD)
 
 db.connect().then(() => {
     console.log('Connected to DB successfully!')
