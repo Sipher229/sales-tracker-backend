@@ -9,6 +9,10 @@ const db = new pg.Client({
     port: 5432
 })
 
-db.connect()
+db.connect().then(() => {
+    console.log('Connected to DB successfully!')
+}).catch((err) => {
+    console.log('Unable to connect to DB :(. Message:' + err.message)
+})
 
 export default db
