@@ -111,4 +111,23 @@ goalsRouter.get('/getgoals/all', (req, res, next) => {
     })
 })
 
+goalsRouter.get('/getcampaigns/:id', (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized())
+
+    if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
+
+    const {id} = req.params
+
+    const qry = 'SELECT * FROM campaigns where goal_id = $1'
+
+    db.query(qry, [id], (err, result) => {
+        if(err) return next(createError.BadRequest())
+
+        return res.status(200).json({
+            requestedData: result.rows,
+            message: 'Data retrieved successfully'
+        })
+    })
+})
+
 export default goalsRouter

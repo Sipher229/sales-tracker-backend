@@ -113,4 +113,25 @@ campaignsRouter.get('/getcampaigns/all', (req, res, next) => {
     })
 })
 
+campaignsRouter.get('/getemployees/:id', (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized())
+
+    if (req.user.employee_role !== 'manager') {
+        return next(createError.Forbidden())
+    }
+
+    const qry = 'SELECT * FROM employees WHERE campaign_id = $1'
+
+    const {id} = req.params
+
+    db.query(qry, [id], (err, result) => {
+        if (err) return next(createError.BadRequest())
+
+        return res.status(200).json({
+            message: 'Data retrieved successfully',
+            requestedData: result.rows
+        })
+    })
+})
+
 export default campaignsRouter
