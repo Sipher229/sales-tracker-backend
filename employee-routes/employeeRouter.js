@@ -64,6 +64,15 @@ const verifyOtpExists = async (id) => {
         return false
     }
 }
+
+const deleteLogsByEmployee = async (id) => {
+    const qry = 'DELETE FROM LOGS WHERE employee_id = $1'
+    db.query(qry, [id], (err) => (err) => {
+        if (err) throw Error('DeletingFromLogError: ' + err.message)
+
+        return true
+    })
+}
 // ---------------------------------------------------------------------------------------
 
 // ============================================ routes =======================================
@@ -118,6 +127,40 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
         next(createError.Conflict('email already exists'))
     }
     
+})
+
+employeeRouter.delete('/delete/:id', (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized())
+
+    if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
+
+    const {id} = req.params
+
+    const deleteEmployee = (id) => {
+        const qry = 'DELETE FROM employees WHERE id = $1'
+
+        try {
+            db.query(qry, [id], err => {
+                if(err) throw Error('DeleteEmployeeError: ' + err.message)
+    
+                return
+            })
+        } catch (error) {
+            throw Error(error.message)
+        }
+        
+    }
+
+    try {
+        deleteLogsByEmployee(id)
+        deleteEmployee(id)
+        return res.status(200).json({
+            message:'Employee deleted susccessfully'
+        })
+    } catch (error) {
+        return next(createError.BadRequest(error.message))
+    }
+
 })
 
 employeeRouter.post('/addemployee/:pin', async (req, res, next) => {
@@ -179,14 +222,15 @@ employeeRouter.patch('/editemployee/:id', (req, res, next) => {
         employeeRole,
         employeeNumber,
         campaignId,
+        managerId
     } = req.body
 
     const editQry = 
     'UPDATE employees SET first_name = $1 , last_name=$2, email=$3,\
-    employee_role=$4, employee_number=$5, campaign_id =$6\
-    WHERE id = $7'
+    employee_role=$4, employee_number=$5, campaign_id =$6, manager_id = $7\
+    WHERE id = $8'
 
-    db.query(editQry, [firstName, lastName, username, employeeRole, employeeNumber, campaignId, id],
+    db.query(editQry, [firstName, lastName, username, employeeRole, employeeNumber, campaignId, managerId, id],
     (err) => {
     if (err) {
         return next(createError.BadRequest(err.message))

@@ -10,7 +10,7 @@ goalsRouter.post('/addgoal', (req, res, next) => {
         return next(createError.Unauthorized() )
     }
 
-    if( !req.user.employee_role ){
+    if( req.user.employee_role !== 'manager' ){
         return next(createError.Forbidden() )
     }
 
@@ -44,13 +44,13 @@ goalsRouter.delete('/delete/:id', (req, res, next) => {
     if( !req.isAuthenticated() ){
         return next( createError.Unauthorized() )
     }
-    if (req.employee_role !== 'manager') return next(createError.Forbidden())
-    const {id} = req.params.id
+    if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
+    const {id} = req.params
 
     const deleteGoalQry = 'DELETE FROM goals WHERE id = $1'
 
     db.query(deleteGoalQry, [id], (err, result) =>{
-        if(err) return next(createError.BadRequest('could not delete'))
+        if(err) return next(createError.BadRequest('DeleteGoalError: ' + err.message))
         
         return res.status(200).json({
             message: 'Successfully deleted goal',
@@ -78,10 +78,10 @@ goalsRouter.patch('/editgoal/:id', (req, res, next) => {
     db.query(
         editQry,
         [name, hourlySales, hourlyDecisions, employeeId, id],
-        (err, result)=> {
+        (err)=> {
             if ( err ) {
                 console.log(err.message)
-                return next(createError.BadRequest('Unable to edit goal'))
+                return next(createError.BadRequest('Unable to edit goal: ' + err.message))
             }
 
             return res.status(200).json({
@@ -96,6 +96,7 @@ goalsRouter.get('/getgoals/all', (req, res, next) => {
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
+    if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
     const getSalesQry = 
     'SELECT * FROM goals ORDER BY entry_date DESC'
 

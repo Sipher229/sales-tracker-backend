@@ -44,12 +44,13 @@ campaignsRouter.delete('/delete/:id', (req, res, next) => {
     if( !req.isAuthenticated() ){
         return next(createError.Unauthorized() )
     }
-    const {id} = req.params.id
+    if ( req.user.employee_role !== 'manager') return next(createError.Forbidden())
+    const {id} = req.params
 
     const deleteCampaignQry = 'DELETE FROM campaigns WHERE id = $1'
 
     db.query(deleteCampaignQry, [id], (err, result) =>{
-        if(err) return next(createError.BadRequest('could not delete'))
+        if(err) return next(createError.BadRequest('could not delete: ' + err.message))
         
         return res.status(200).json({
             message: 'Successfully deleted campaign',
