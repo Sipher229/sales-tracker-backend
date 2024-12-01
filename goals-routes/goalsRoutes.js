@@ -30,11 +30,14 @@ goalsRouter.post('/addgoal', (req, res, next) => {
     db.query(
         addGoalQry,
         [name, hourlySales, hourlyDecisions, employeeId, entryDate],
-        (err, result)=> {
-            if ( err ) return next(createError.BadRequest(err.message))
+        (err)=> {
+                if ( err ) {
+                    return next(createError.BadRequest(err.message))
+                }
+                
 
             return res.status(200).json({
-                message: 'campaign added successfully'
+                message: 'Goal added successfully'
             })
         }
     )
