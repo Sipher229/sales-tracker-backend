@@ -29,4 +29,5 @@ jobs:
           export DB_PORT=${{ secrets.DB_PORT }}
           export DB_PIN=${{ secrets.PORT }}
           export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          export DB_HOST=${{ secrets.DB_HOST}}
           pm2 restart salestracker-backend || pm2 start index.js --name salestracker-backend
