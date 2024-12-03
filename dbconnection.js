@@ -11,6 +11,7 @@ const db = new pg.Client({
         rejectUnauthorized: false
     }
 })
+console.log(process.env.DB_PASSWORD)
 
 db.connect().then(() => {
     console.log('Connected to DB successfully!')
