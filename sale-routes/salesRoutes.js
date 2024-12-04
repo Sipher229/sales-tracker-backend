@@ -31,7 +31,7 @@ const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate, shiftDur
 const updateLogsAfterEdit = async (employeeId, entryDate) => {
     const qry =
     'UPDATE daily_logs SET\
-    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $2)::float),\
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $2 LIMIT 1)::float),\
     commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $3)\
     WHERE login_date = $4 AND employee_id = $5'
 
@@ -75,12 +75,12 @@ salesRoutes.post('/addsale', async (req, res, next) => {
         employeeId,
     } = req.body
 
-    const loginDate = getCurrentDate()
+    const loginDate = getCurrentDate(req.user.timeZone)
     const {loginTime, shiftDuration} = await getLoginTime(req.user.id, loginDate)
 
     if (!loginTime) return next(createError.InternalServerError())
         
-    const currentTime = getCurrentDateTme()
+    const currentTime = getCurrentDateTme(req.user.timeZone)
     const hoursLoggedIn = differenceInHours(currentTime, loginTime)
     // console.log(loginTime + " " + currentTime)
     // console.log(hoursLoggedIn)
@@ -111,7 +111,7 @@ salesRoutes.post('/addsale', async (req, res, next) => {
 salesRoutes.patch('/update/salesperhour', async (req, res, next) => {
     if (!req.isAuthenticated() ) return next(createError.Unauthorized())
 
-    const loginDate = getCurrentDate()
+    const loginDate = getCurrentDate(req.user.timeZone)
     const {loginTime, shiftDuration} = await getLoginTime(req.user.id, loginDate)
     if (!loginTime) {
         return res.status(200).json({
@@ -119,7 +119,7 @@ salesRoutes.patch('/update/salesperhour', async (req, res, next) => {
             success: false
         })
     }
-    const currentTime = getCurrentDateTme()
+    const currentTime = getCurrentDateTme(req.user.timeZone)
     const hoursLoggedIn = differenceInHours(currentTime, loginTime)
     
 

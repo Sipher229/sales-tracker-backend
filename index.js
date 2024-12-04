@@ -43,17 +43,19 @@ app.use(session({
 app.use(passport.initialize())
 app.use(passport.session())
 
+app.use((req, res, next) => {
+    if (req.isAuthenticated() && req.session.userTimeZone) {
+        req.user.timeZone = req.session.userTimeZone;
+    }
+    next();
+});
+
 app.use('/api/sales', salesRoutes)
 app.use('/api/goals', goalsRouter)
 app.use('/api/campaigns', campaignsRouter)
 app.use('/api/employees', employeeRouter)
 app.use('/api/logs', logsRouter)
 app.use('/api/jobaids', jobAidRouter)
-
-app.post('/api/login', passport.authenticate('local', {
-    successRedirect: '/api/employees/getemployee',
-    failureRedirect: '/api/notauthorized'
-}))
 
 const updateLoginTime =  async (loginDate, loginTimeAndDate, employeeId) => {
     const qry = 
@@ -88,16 +90,38 @@ const verifyLoggedInToday = async (email, loginDate) => {
     }
 }
 
+app.post('/api/login', (req, res, next) => {
+    const {tz, username, password} = req.body
+    passport.authenticate('local', (err, user) => {
+        if(err) return next(createError.InternalServerError(err.message))
+
+        if(!user) return res.redirect('/api/unauthorized')
+
+        req.logIn(user, async (error) => {
+            if (error) return next(createError.InternalServerError(error.message))
+
+            req.user.timeZone = tz
+            req.session.userTimeZone = tz
+            const loginDate = getCurrentDate(tz)
+    
+            const timeAndDate = getCurrentDateTme(tz)
+            
+            const loggedInToday = await verifyLoggedInToday(username, loginDate)
+
+            if ( !loggedInToday ){
+                await updateLoginTime(loginDate, timeAndDate, req.user.id)
+            
+            }
+
+            return res.redirect('/api/employees/getemployee')
+        })
+    })(req, res, next);
+})
+
+
 passport.use(new Strategy( async function verify(username, password, done) {
     const qry = 
     'SELECT id, email, password, employee_role from employees where email = $1'
-
-    
-    const loginDate = getCurrentDate()
-    
-    const timeAndDate = getCurrentDateTme()
-    
-    const loggedInToday = await verifyLoggedInToday(username, loginDate)
     
     db.query(qry, [username], (err, result) => {
         if(err){
@@ -111,10 +135,7 @@ passport.use(new Strategy( async function verify(username, password, done) {
                 }
                 else {
                     if(correct){
-                        if ( !loggedInToday ){
-                            await updateLoginTime(loginDate, timeAndDate, result.rows[0].id)
-                        
-                        }
+
                         return done(null, result.rows[0])
                         
                     }
@@ -144,7 +165,7 @@ app.get('/api/notauthorized', (req, res, next)=>{
 
 app.delete("/api/logout", (req, res, next) => {
     if(req.isAuthenticated()){
-        const currentDate = getCurrentDateTme()
+        const currentDate = getCurrentDateTme(req.user.timeZone)
         const qry = 'UPDATE daily_logs SET logout_time = $1 WHERE employee_id = $2'
         db.query(qry, [currentDate, req.user.id], err => {
             if ( err ) next(createError.InternalServerError())

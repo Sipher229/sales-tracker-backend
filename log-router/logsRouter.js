@@ -16,7 +16,7 @@ logsRouter.get('/getlogs', (req, res, next) => {
     WHERE login_date = $1 AND employee_role = 'sales associate'\
     ORDER BY sales_per_hour DESC LIMit 5"
 
-    const loginDate = getCurrentDate()
+    const loginDate = getCurrentDate(req.user.timeZone)
 
     db.query(qry, [loginDate], (err, result) => {
         if (err) return next(createError.BadRequest(err.message))
@@ -56,7 +56,7 @@ logsRouter.get('/getlogs/:date', (req, res, next) => {
 logsRouter.get('/getchartdata', (req, res, next) => {
     if (!req.isAuthenticated()) return next(createError.Unauthorized())
     
-    const currentDate = getCurrentDate()
+    const currentDate = getCurrentDate(req.user.timeZone)
     
 
     const qry = 
@@ -80,7 +80,7 @@ logsRouter.get('/getchartdata/:id', (req, res, next) => {
         return next(createError.Forbidden())
     }
     
-    const currentDate = getCurrentDate()
+    const currentDate = getCurrentDate(req.user.timeZone)
     const {id} = req.params
     
     const qry = 

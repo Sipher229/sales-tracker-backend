@@ -37,7 +37,7 @@ const generateOtp = () => {
     return otp
 }
 
-const verifyOtpExists = async (id) => {
+const verifyOtpExists = async (id, tz) => {
     const qry = 
     'SELECT * FROM otps WHERE id = $1'
     const validFor = 30
@@ -47,7 +47,7 @@ const verifyOtpExists = async (id) => {
 
         if (response.rows !== 0){
             const createdAt = response.rows[0].created_at
-            const currentTime = getCurrentDateTme()
+            const currentTime = getCurrentDateTme(tz)
             const timeDifference = differenceInHours(currentTime, createdAt)
 
             if (timeDifference > validFor) {
@@ -249,7 +249,7 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
     }
 
     else{
-        const loginDate = getCurrentDate()
+        const loginDate = getCurrentDate(req.user.timeZone)
         const empId = req.user.id
 
         const getEmployeeQry = 
@@ -279,7 +279,7 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
 employeeRouter.get('/getemployee/:id', async (req, res, next) => {
     if (!req.isAuthenticated()) return next(createError.Unauthorized())
 
-    const loginDate = getCurrentDate()
+    const loginDate = getCurrentDate(req.user.timeZone)
     const empId = req.params.id
 
     const getEmployeeQry = 
@@ -384,7 +384,7 @@ employeeRouter.patch('/assign/campaign', (req, res, next) => {
 employeeRouter.patch('/edit/shiftduration', (req, res, next) => {
     if( !req.isAuthenticated() ) return next.Unauthorized() 
     const {shiftDuration} = req.body
-    const loginDate = getCurrentDate()
+    const loginDate = getCurrentDate(req.user.timeZone)
 
     const qry = 
     'UPDATE daily_logs SET shift_duration = $1 WHERE employee_id = $2 AND login_date = $3 RETURNING shift_duration'
@@ -492,7 +492,7 @@ employeeRouter.post('/confirmemail', async (req, res, next) => {
     if ( !emailExists ) return next(createError.Unauthorized())
 
     const otp = generateOtp()
-    const createdAt = getCurrentDateTme()
+    const createdAt = getCurrentDateTme(req.user.timeZone)
     const htmlEmail = `<p>Please use the following passcode to confirm your email\
     in the weedman sales tracker: <br> <b>${otp}</b> <br> Please note that the code is only\
     valid for 30 minutes <br> <br> Kind regards, <br> Weedman Sales Tracker Team</p>`
@@ -527,7 +527,7 @@ employeeRouter.post('/verifyotp', (req, res, next) => {
 
             const validOtp = result.rows[0].otp_value
             const createdAt = result.rows[0].created_at
-            const currentTime = getCurrentDateTme()
+            const currentTime = getCurrentDateTme(req.user.timeZone)
             const timeDifference = differenceInHours(currentTime, createdAt)
             
             if (validOtp !== otp) {
@@ -568,7 +568,7 @@ employeeRouter.post('/verifyotp', (req, res, next) => {
 employeeRouter.put('/resetpassword', async (req, res, next) => {
     const {newPassword, username, otpId} = req.body
 
-    const otpExists = await verifyOtpExists(otpId)
+    const otpExists = await verifyOtpExists(otpId, req.user.timezone)
 
     const qry = 
     'UPDATE employees SET password = $1 WHERE email = $2'
