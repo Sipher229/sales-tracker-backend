@@ -46,7 +46,7 @@ const updateLogsAfterEdit = async (employeeId, entryDate) => {
 }
 
 const getLoginTime = async (id, loginDate)=> {
-    const qry = "SELECT login_time AT TIME ZONE 'Canada/Eastern' as login_time, shift_duration\
+    const qry = "SELECT login_time as login_time, shift_duration\
     from daily_logs WHERE login_date = $1 and employee_id = $2"
 
     try {
