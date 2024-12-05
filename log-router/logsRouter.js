@@ -6,7 +6,7 @@ import { getCurrentDate } from '../dateFns.js'
 const logsRouter = express.Router()
 
 logsRouter.get('/getlogs', (req, res, next) => {
-    if ( !req.isAuthenticated() ) return next(createError.Unauthorized)
+    if ( !req.isAuthenticated() ) return next(createError.Unauthorized())
 
     const qry = 
     "SELECT login_date, first_name, last_name, sales_per_hour,\
@@ -29,7 +29,7 @@ logsRouter.get('/getlogs', (req, res, next) => {
     })
 })
 logsRouter.get('/getlogs/:date', (req, res, next) => {
-    if ( !req.isAuthenticated() ) return next(createError.Unauthorized)
+    if ( !req.isAuthenticated() ) return next(createError.Unauthorized())
 
     const {date} = req.params
 
@@ -61,7 +61,7 @@ logsRouter.get('/getchartdata', (req, res, next) => {
 
     const qry = 
     'SELECT login_date, sales_per_hour FROM daily_logs\
-    WHERE employee_id = $1 AND login_date < $2 ORDER BY login_date LIMIT 9'
+    WHERE employee_id = $1 AND login_date < $2 AND sales_per_hour IS NOT NULL ORDER BY login_date LIMIT 9'
 
     db.query(qry, [req.user.id, currentDate], (err, result) => {
         if ( err ) return next(createError.InternalServerError())
