@@ -256,7 +256,7 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
         const getEmployeeQry = 
         `SELECT employees.id as id, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
         goals.hourly_decisions as hourlyDecisions, goals.hourly_sales as hourlySales, campaigns.id as emp_campaign_id,\
-        campaigns.name as campaignName, shift_duration, employees.campaign_id as campaign_id, login_time AT TIME ZONE 'UTC' AT TIME ZONE $1 as login_time, sales_per_hour, daily_logs.commission as closingCommission\
+        campaigns.name as campaignName, shift_duration, employees.campaign_id as campaign_id, login_time AT TIME ZONE $1 as login_time, sales_per_hour, daily_logs.commission as closingCommission\
         FROM campaigns INNER JOIN goals ON goals.id = campaigns.goal_id RIGHT JOIN employees\
         ON campaigns.id = employees.campaign_id INNER JOIN daily_logs ON employees.id = daily_logs.employee_id\
         WHERE employees.id = $2 AND login_date = $3`
@@ -287,7 +287,7 @@ employeeRouter.get('/getemployee/:id', async (req, res, next) => {
     const getEmployeeQry = 
     `SELECT employees.id as id, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
     goals.hourly_decisions as hourlyDecisions, goals.hourly_sales as hourlySales, \
-    campaigns.name as campaignName, employees.campaign_id as campaign_id, shift_duration, login_time AT TIME ZONE 'UTC' AT TIME ZONE $1 as login_time, sales_per_hour, daily_logs.commission as closingCommission\
+    campaigns.name as campaignName, employees.campaign_id as campaign_id, shift_duration, login_time AT TIME ZONE $1 as login_time, sales_per_hour, daily_logs.commission as closingCommission\
     FROM campaigns INNER JOIN goals ON goals.id = campaigns.goal_id RIGHT JOIN employees\
     ON campaigns.id = employees.campaign_id RIGHT JOIN daily_logs ON employees.id = daily_logs.employee_id\
     WHERE employees.id = $2 AND login_date = $3 ORDER BY login_date DESC limit 5`
