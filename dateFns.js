@@ -1,7 +1,7 @@
 import {differenceInHours, differenceInMinutes} from 'date-fns'
 import {format, toZonedTime} from 'date-fns-tz'
 
-const getCurrentDateTme = (timeZone) => {
+const getCurrentDateTme = (timeZone='America/Toronto') => {
     // return new Date().toLocaleString('sv-SE') 
     const now = new Date();
     const zonedDate = toZonedTime(now, timeZone);
@@ -14,14 +14,14 @@ const getDifferenceInMinutes = (laterDate, earlierDate) => {
     return differenceInMinutes(laterDate, earlierDate)
 }
 
-const getCurrentDate = (timeZone) => {
+const getCurrentDate = (timeZone='America/Toronto') => {
     // return new Intl.DateTimeFormat('en-CA').format(new Date())
     const now = new Date();
     const zonedDate = toZonedTime(now, timeZone);
     return format(zonedDate, 'yyyy-MM-dd', { timeZone });
 
 }
-console.log(getCurrentDate('America/Toronto'))
-console.log(getCurrentDateTme('America/Toronto'))
+// console.log(getCurrentDate('America/Toronto'))
+// console.log(getCurrentDateTme('America/Toronto'))
 
 export {getCurrentDateTme, differenceInHours, getCurrentDate, getDifferenceInMinutes}
