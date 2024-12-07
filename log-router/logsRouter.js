@@ -28,6 +28,55 @@ logsRouter.get('/getlogs', (req, res, next) => {
 
     })
 })
+logsRouter.get('/getlogs/:id', (req, res, next) => {
+    if ( !req.isAuthenticated() ) return next(createError.Unauthorized())
+
+    if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
+
+    const qry = 
+    "SELECT * from daily_logs\
+    WHERE login_date = $1 AND employee_id = $2\
+    ORDER BY sales_per_hour DESC LIMit 10"
+
+    const {id} = req.params
+
+    const loginDate = getCurrentDate(req.user.timeZone)
+
+    db.query(qry, [loginDate, id], (err, result) => {
+        if (err) return next(createError.BadRequest(err.message))
+
+        res.status(200).json({
+            message: 'Data retrieved successfully!',
+            requestedData: result.rows
+        })
+
+    })
+})
+logsRouter.get('/getlogsbyid&date', (req, res, next) => {
+    if ( !req.isAuthenticated() ) return next(createError.Unauthorized())
+
+    if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
+
+    const qry = 
+    "SELECT * from daily_logs\
+    WHERE login_date = $1 AND employee_id = $2\
+    ORDER BY sales_per_hour DESC LIMit 10"
+
+    const {id, date} = req.query
+
+    const loginDate = date
+
+    db.query(qry, [loginDate, id], (err, result) => {
+        if (err) return next(createError.BadRequest(err.message))
+
+        res.status(200).json({
+            message: 'Data retrieved successfully!',
+            requestedData: result.rows
+        })
+
+    })
+})
+
 logsRouter.get('/getlogs/:date', (req, res, next) => {
     if ( !req.isAuthenticated() ) return next(createError.Unauthorized())
 
