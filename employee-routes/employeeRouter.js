@@ -66,12 +66,48 @@ const verifyOtpExists = async (id, tz) => {
 }
 
 const deleteLogsByEmployee = async (id) => {
-    const qry = 'DELETE FROM LOGS WHERE employee_id = $1'
-    db.query(qry, [id], (err) => (err) => {
-        if (err) throw Error('DeletingFromLogError: ' + err.message)
-
+    const qry = 'DELETE FROM daily_logs WHERE employee_id = $1'
+    try{
+        await db.query(qry, [id])
         return true
-    })
+    }
+    catch(err){
+        return false
+    }
+}
+const deleteCampaignsByEmployee = async (id) => {
+    const qry = 'DELETE FROM campaigns WHERE employee_id = $1'
+    try{
+        await db.query(qry, [id])
+        return true
+    }
+    catch(err){
+        return false
+    }
+}
+const deleteGoalsByEmployee = async (id) => {
+    const qry = 'DELETE FROM goals WHERE employee_id = $1'
+    try{
+        await db.query(qry, [id])
+        return true
+    }
+    catch(err){
+        return false
+    }
+}
+
+
+const deleteSalesByEmployee = async (id) => {
+    const qry = 'DELETE FROM sales WHERE employee_id = $1'
+
+    try{
+
+        await db.query(qry, [id])
+        return true
+    }
+    catch(err) {
+        return false
+    }
 }
 // ---------------------------------------------------------------------------------------
 
@@ -129,36 +165,44 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
     
 })
 
-employeeRouter.delete('/delete/:id', (req, res, next) => {
+employeeRouter.delete('/delete/:id', async (req, res, next) => {
     if (!req.isAuthenticated()) return next(createError.Unauthorized())
 
     if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
 
     const {id} = req.params
 
-    const deleteEmployee = (id) => {
+    const deleteEmployee = async (id) => {
         const qry = 'DELETE FROM employees WHERE id = $1'
+        const cDelete = deleteCampaignsByEmployee(id)
+        const gDelete = deleteGoalsByEmployee(id)
+        const lDelete = deleteLogsByEmployee(id)
+        const sDelete = deleteSalesByEmployee(id)
 
-        try {
-            db.query(qry, [id], err => {
-                if(err) throw Error('DeleteEmployeeError: ' + err.message)
-    
-                return
-            })
-        } catch (error) {
-            throw Error(error.message)
+        if (cDelete && gDelete && lDelete && sDelete) {
+
+            await db.query(qry, [id])
+            return true
+        }
+        else{
+            return false
         }
         
     }
 
     try {
-        deleteLogsByEmployee(id)
-        deleteEmployee(id)
-        return res.status(200).json({
-            message:'Employee deleted susccessfully'
-        })
+        const response = await deleteEmployee(id)
+        if (response) {
+
+            return res.status(200).json({
+                message:'Employee deleted susccessfully'
+            })
+        }
+        else{
+            return next(createError.InternalServerError())
+        }
     } catch (error) {
-        return next(createError.BadRequest(error.message))
+        return next(createError.InternalServerError(error.message))
     }
 
 })
