@@ -27,7 +27,9 @@ const redisClient = createClient({
     url: process.env.REDIS_ENDPOINT,
     legacyMode: true
 })
-redisClient.connect().catch((err) => {
+redisClient.connect().then(() => {
+    console.log('connected to redis server successfully')
+}).catch((err) => {
     console.error("Unable to connent to redis. Error: " + err)
 })
 // -----------------------------------------------------------------
