@@ -29,14 +29,16 @@ const redisClient = createClient({
         tls: true
     }
 })
-await redisClient.connect()
-redisClient.on('connect', () => {
-    console.log('connected to redis memcache successfully. ')
-})
-
-redisClient.on('error', (err) => {
-    console.error("Unable to connent to redis. Error: " + err)
-})
+(
+    async () => {
+        try {
+            await redisClient.connect()
+            console.log('Connected to redis server successfully')
+        } catch (error) {
+            console.error('Redis connection failed.', error)
+        }
+    }
+)();
 
 // -----------------------------------------------------------------
 app.use(bodyParser.urlencoded({extended: true}))
