@@ -29,16 +29,15 @@ const redisClient = createClient({
         tls: true
     }
 })
-(
-    async () => {
+async function connectToRedis(params) {
         try {
             await redisClient.connect()
             console.log('Connected to redis server successfully')
         } catch (error) {
             console.error('Redis connection failed.', error)
         }
-    }
-)();
+}
+await connectToRedis();
 
 // -----------------------------------------------------------------
 app.use(bodyParser.urlencoded({extended: true}))
