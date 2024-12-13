@@ -29,12 +29,12 @@ const redisClient = createClient({
         tls: true
     }
 })
-console.log(process.env.REDIS_ENDPOINT)
+await redisClient.connect()
 redisClient.on('connect', () => {
-    console.log('connected to redis memcache successfully. URL:' + process.env.REDIS_ENDPOINT)
+    console.log('connected to redis memcache successfully. ')
 })
 
-redisClient.on('error', () => {
+redisClient.on('error', (err) => {
     console.error("Unable to connent to redis. Error: " + err)
 })
 
