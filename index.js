@@ -25,8 +25,11 @@ const port = process.env.port || 3000
 // added for redis
 const redisClient = createClient({ 
     url: process.env.REDIS_ENDPOINT || 'salestracker-cache-oi1dud.serverless.cac1.cache.amazonaws.com:6379',
-    legacyMode: true
+    socket: {
+        tls: true
+    }
 })
+console.log(process.env.REDIS_ENDPOINT)
 redisClient.on('connect', () => {
     console.log('connected to redis memcache successfully. URL:' + process.env.REDIS_ENDPOINT)
 })
