@@ -27,11 +27,14 @@ const redisClient = createClient({
     url: process.env.REDIS_ENDPOINT || 'salestracker-cache-oi1dud.serverless.cac1.cache.amazonaws.com:6379',
     legacyMode: true
 })
-redisClient.connect().then(() => {
-    console.log('connected to redis server successfully')
-}).catch((err) => {
+redisClient.on('connect', () => {
+    console.log('connected to redis memcache successfully. URL:' + process.env.REDIS_ENDPOINT)
+})
+
+redisClient.on('error', () => {
     console.error("Unable to connent to redis. Error: " + err)
 })
+
 // -----------------------------------------------------------------
 app.use(bodyParser.urlencoded({extended: true}))
 
