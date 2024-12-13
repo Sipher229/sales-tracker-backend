@@ -4,6 +4,8 @@ import cors from 'cors'
 import createError from 'http-errors'
 import bodyParser from 'body-parser'
 import session from "express-session"
+import {createClient} from "redis"
+import { RedisStore } from 'connect-redis'
 import db from './dbconnection.js'
 import bcrypt from 'bcrypt'
 import passport from 'passport'
@@ -20,7 +22,15 @@ import jobAidRouter from './jobAid-router/jobAidRouter.js'
 const app = express()
 const port = process.env.port || 3000
 
-
+// added for redis
+const redisClient = createClient({ 
+    url: process.env.REDIS_ENDPOINT,
+    legacyMode: true
+})
+redisClient.connect().catch((err) => {
+    console.error("Unable to connent to redis. Error: " + err)
+})
+// -----------------------------------------------------------------
 app.use(bodyParser.urlencoded({extended: true}))
 
 app.use(cors({
@@ -31,7 +41,9 @@ app.use(cors({
 }))
 app.use(express.json())
 
+
 app.use(session({
+    store: new RedisStore({client: redisClient, ttl: 8 * 3600 * 1000}) , // added for redis
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
