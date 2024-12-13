@@ -24,7 +24,7 @@ const port = process.env.port || 3000
 
 // added for redis
 const redisClient = createClient({ 
-    url: process.env.REDIS_ENDPOINT || 'salestracker-cache-oi1dud.serverless.cac1.cache.amazonaws.com:6379',
+    url: process.env.REDIS_ENDPOINT,
     socket: {
         tls: true
     }
