@@ -36,7 +36,7 @@ logsRouter.get('/getlogs/:id', (req, res, next) => {
     const qry = 
     "SELECT * from daily_logs\
     WHERE login_date <= $1 AND employee_id = $2\
-    ORDER BY sales_per_hour DESC LIMit 10"
+    ORDER BY login_date DESC LIMit 10"
 
     const {id} = req.params
 
@@ -60,7 +60,7 @@ logsRouter.get('/getlogsbyid&date', (req, res, next) => {
     const qry = 
     "SELECT * from daily_logs\
     WHERE login_date <= $1 AND employee_id = $2\
-    ORDER BY sales_per_hour DESC LIMit 10"
+    ORDER BY login_date DESC LIMit 10"
 
     const {id, date} = req.query
 

@@ -259,14 +259,14 @@ employeeRouter.patch('/editemployee/:id', (req, res, next) => {
     if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
 
     const id = req.params.id
+    const managerId = req.user.id
     const {
         firstName,
         lastName,
         username,
         employeeRole,
         employeeNumber,
-        campaignId,
-        managerId
+        campaignId
     } = req.body
 
     const editQry = 
