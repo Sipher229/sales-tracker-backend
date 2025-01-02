@@ -1,4 +1,4 @@
-import express, { response } from 'express'
+import express from 'express'
 import db from '../dbconnection.js'
 import createError from 'http-errors'
 import {differenceInHours, getCurrentDateTme, getCurrentDate} from '../dateFns.js'
@@ -31,12 +31,12 @@ const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate, shiftDur
 const updateLogsAfterEdit = async (employeeId, entryDate) => {
     const qry =
     'UPDATE daily_logs SET\
-    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $2 LIMIT 1)::float),\
-    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $3)\
-    WHERE login_date = $4 AND employee_id = $5'
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $2 AND login_date = $3 LIMIT 1)::float),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $4)\
+    WHERE login_date = $5 AND employee_id = $6'
 
     try {
-        await db.query(qry, [employeeId, employeeId, employeeId, entryDate, employeeId])
+        await db.query(qry, [employeeId, employeeId, entryDate, employeeId, entryDate, employeeId])
         return true
     } catch (error) {
         console.log(error.message)

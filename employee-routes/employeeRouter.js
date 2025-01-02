@@ -65,6 +65,23 @@ const verifyOtpExists = async (id, tz) => {
     }
 }
 
+const updateLogsAfterEdit = async (employeeId, entryDate) => {
+    const qry =
+    'UPDATE daily_logs SET\
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $2 AND login_date = $3 LIMIT 1 )::float),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $4)\
+    WHERE login_date = $5 AND employee_id = $6 RETURNING sales_per_hour'
+
+    try {
+        const response = await db.query(qry, [employeeId, employeeId, entryDate, employeeId,  entryDate, employeeId])
+        return response.rows[0].sales_per_hour
+    } catch (error) {
+        console.log(error.message)
+        return -1
+    }
+    
+}
+
 const deleteLogsByEmployee = async (id) => {
     const qry = 'DELETE FROM daily_logs WHERE employee_id = $1'
     try{
@@ -447,16 +464,20 @@ employeeRouter.patch('/edit/shiftduration/manager', (req, res, next) => {
 
     if ( req.user.employee_role !== 'manager') return next( createError.Forbidden() )
 
-    const {shiftDuration, loginDate} = req.body
+    const {shiftDuration, loginDate, employeeId} = req.body
 
     const qry = 
-    'UPDATE daily_logs SET shift_duration = $1 WHERE login_date = $2'
+    'UPDATE daily_logs SET shift_duration = $1 WHERE login_date = $2 AND employee_id = $3 RETURNING shift_duration'
 
-    db.query(qry, [shiftDuration, loginDate], (err, result) => {
+    db.query(qry, [shiftDuration, loginDate, employeeId], async (err, result) => {
         if ( err ) return next(createError.BadRequest())
+
+        await updateLogsAfterEdit(employeeId, loginDate)
 
         return res.status(200).json({
             message: "Information updated successfully",
+            newDuration: result.rows[0].shift_duration,
+            salesPerHour: salesPerHour
         })
     })
 })

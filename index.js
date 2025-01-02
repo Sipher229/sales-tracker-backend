@@ -52,12 +52,12 @@ app.use(express.json())
 
 
 app.use(session({
-    store: new RedisStore({client: redisClient, ttl: 8 * 3600 * 1000}) , // added for redis
+    store: new RedisStore({client: redisClient, ttl: 2 * 3600 * 1000}) , // added for redis
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
     cookie: {
-        maxAge: 8 * 3600 * 1000
+        maxAge: 2 * 3600 * 1000
     }
 }))
 
