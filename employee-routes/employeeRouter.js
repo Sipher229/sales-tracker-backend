@@ -153,13 +153,13 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
     'INSERT INTO employees(id, first_name, last_name, employee_number, email, password, employee_role, manager_id, campaign_id)\
     VALUES(DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id'
 
-    const emailExists = await verifyEmailExists(username)
+    const emailExists = await verifyEmailExists(username.toLowerCase())
     if(!emailExists){
         bcrypt.hash(password, saltRounds, (err, hash) => {
             if(err) {
                 next(createError.InternalServerError())
             }
-            db.query(registerQry, [firstName, lastName, employeeNumber, username, 
+            db.query(registerQry, [firstName.trim(), lastName.trim(), employeeNumber, username.toLowerCase(), 
                 hash, employeeRole, managerId, campaignId],
                 
                 (error, result)=>{

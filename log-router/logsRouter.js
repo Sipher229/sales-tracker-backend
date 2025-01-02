@@ -34,7 +34,9 @@ logsRouter.get('/getlogs/:id', (req, res, next) => {
     if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
 
     const qry = 
-    "SELECT * from daily_logs\
+    "SELECT login_date, login_time, logout_time, commission, shift_duration,\
+    sales_per_hour, daily_logs.id, first_name, last_name from daily_logs\
+    INNER JOIN employees ON daily_logs.employee_id = employees.id\
     WHERE login_date <= $1 AND employee_id = $2\
     ORDER BY login_date DESC LIMit 10"
 
@@ -58,7 +60,9 @@ logsRouter.get('/getlogsbyid&date', (req, res, next) => {
     if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
 
     const qry = 
-    "SELECT * from daily_logs\
+    "SELECT login_date, login_time, logout_time, commission, shift_duration,\
+    sales_per_hour, daily_logs.id, first_name, last_name from daily_logs\
+    INNER JOIN employees ON daily_logs.employee_id = employees.id\
     WHERE login_date <= $1 AND employee_id = $2\
     ORDER BY login_date DESC LIMit 10"
 
