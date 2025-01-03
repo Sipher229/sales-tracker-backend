@@ -472,7 +472,7 @@ employeeRouter.patch('/edit/shiftduration/manager', (req, res, next) => {
     db.query(qry, [shiftDuration, loginDate, employeeId], async (err, result) => {
         if ( err ) return next(createError.BadRequest())
 
-        await updateLogsAfterEdit(employeeId, loginDate)
+        const salesPerHour = await updateLogsAfterEdit(employeeId, loginDate)
 
         return res.status(200).json({
             message: "Information updated successfully",
