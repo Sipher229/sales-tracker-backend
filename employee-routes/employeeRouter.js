@@ -68,12 +68,12 @@ const verifyOtpExists = async (id, tz) => {
 const updateLogsAfterEdit = async (employeeId, entryDate) => {
     const qry =
     'UPDATE daily_logs SET\
-    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $2 AND login_date = $3 LIMIT 1 )::float),\
-    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $4)\
-    WHERE login_date = $5 AND employee_id = $6 RETURNING sales_per_hour'
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1 AND entry_date = $2)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $3 AND login_date = $4 LIMIT 1 )::float),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $5)\
+    WHERE login_date = $6 AND employee_id = $7 RETURNING sales_per_hour'
 
     try {
-        const response = await db.query(qry, [employeeId, employeeId, entryDate, employeeId,  entryDate, employeeId])
+        const response = await db.query(qry, [employeeId, entryDate, employeeId, entryDate, employeeId,  entryDate, employeeId])
         return response.rows[0].sales_per_hour
     } catch (error) {
         console.log(error.message)
