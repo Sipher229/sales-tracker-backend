@@ -4,8 +4,8 @@ import cors from 'cors'
 import createError from 'http-errors'
 import bodyParser from 'body-parser'
 import session from "express-session"
-import {createClient} from "redis"
-import { RedisStore } from 'connect-redis'
+//import {createClient} from "redis"
+//import { RedisStore } from 'connect-redis'
 import db from './dbconnection.js'
 import bcrypt from 'bcrypt'
 import passport from 'passport'
@@ -23,21 +23,21 @@ const app = express()
 const port = process.env.port || 3000
 
 // added for redis
-const redisClient = createClient({ 
-    url: process.env.REDIS_ENDPOINT,
-    socket: {
-        tls: true
-    }
-})
-async function connectToRedis() {
-        try {
-            await redisClient.connect()
-            console.log('Connected to redis server successfully')
-        } catch (error) {
-            console.error('Redis connection failed.', error)
-        }
-}
-await connectToRedis()
+// const redisClient = createClient({ 
+//     url: process.env.REDIS_ENDPOINT,
+//     socket: {
+//         tls: true
+//     }
+// })
+// async function connectToRedis() {
+//         try {
+//             await redisClient.connect()
+//             console.log('Connected to redis server successfully')
+//         } catch (error) {
+//             console.error('Redis connection failed.', error)
+//         }
+// }
+// await connectToRedis()
 
 // -----------------------------------------------------------------
 app.use(bodyParser.urlencoded({extended: true}))
@@ -52,7 +52,7 @@ app.use(express.json())
 
 
 app.use(session({
-    store: new RedisStore({client: redisClient, ttl: 1 * 3600 * 1000}) , // added for redis
+//    store: new RedisStore({client: redisClient, ttl: 1 * 3600 * 1000}) , // added for redis
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
