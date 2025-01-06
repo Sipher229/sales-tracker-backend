@@ -4,8 +4,8 @@ import cors from 'cors'
 import createError from 'http-errors'
 import bodyParser from 'body-parser'
 import session from "express-session"
-//import {createClient} from "redis"
-//import { RedisStore } from 'connect-redis'
+import {createClient} from "redis"
+import { RedisStore } from 'connect-redis'
 import db from './dbconnection.js'
 import bcrypt from 'bcrypt'
 import passport from 'passport'
