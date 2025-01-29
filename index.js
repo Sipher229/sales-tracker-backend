@@ -14,9 +14,13 @@ import salesRoutes from './sale-routes/salesRoutes.js'
 import goalsRouter from './goals-routes/goalsRoutes.js'
 import campaignsRouter from './campaigns-router/campaignsRouter.js'
 import employeeRouter from './employee-routes/employeeRouter.js'
+import companiesRouter from './companiesRouter.js'
 import {getCurrentDate, getCurrentDateTme} from './dateFns.js'
 import logsRouter from './log-router/logsRouter.js'
 import jobAidRouter from './jobAid-router/jobAidRouter.js'
+import registrationRouter from './registration-router/registrationRouter.js'
+import { sendEmailAdjustable } from './sendEmail.js'
+
 
 
 const app = express()
@@ -48,6 +52,7 @@ app.use(cors({
     optionSuccessStatus: '200',
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
 }))
+app.use("/api/registration/webhook", express.raw({type: "application/json"}))
 app.use(express.json())
 
 
@@ -57,7 +62,7 @@ app.use(session({
     resave: false,
     saveUninitialized: true,
     cookie: {
-        maxAge: 1 * 3600 * 1000
+        maxAge: 2 * 3600 * 1000
     }
 }))
 
@@ -77,6 +82,8 @@ app.use('/api/campaigns', campaignsRouter)
 app.use('/api/employees', employeeRouter)
 app.use('/api/logs', logsRouter)
 app.use('/api/jobaids', jobAidRouter)
+app.use('/api/registration', registrationRouter)
+app.use('/api/companies', companiesRouter)
 
 const updateLoginTime =  async (loginDate, loginTimeAndDate, employeeId) => {
     const qry = 
@@ -142,7 +149,7 @@ app.post('/api/login', (req, res, next) => {
 
 passport.use(new Strategy( async function verify(username, password, done) {
     const qry = 
-    'SELECT id, email, password, employee_role from employees where email = $1'
+    'SELECT id, email, password, employee_role, company_id, employee_type from employees where email = $1'
     
     db.query(qry, [username], (err, result) => {
         if(err){
@@ -201,6 +208,45 @@ app.delete("/api/logout", (req, res, next) => {
         return next(createError.Unauthorized())
     }
     
+})
+
+app.post("/api/contact-us", (req, res, next) => {
+    const {firstName, lastName, email, message, employeeCount, companyName, consent} = req.body
+    const saveQry = "INSERT INTO potential_customers (id, first_name, last_name, email, \
+    message, employee_count, company_name, consent_to_contact) VALUES(default, $1, $2, $3, $4, $5,$6, $7)"
+
+    try {
+        db.query(saveQry, [firstName, lastName, email, message, employeeCount, companyName, consent], async (err) => {
+            if (err) {
+                console.error(err.message)
+                return next(createError.BadRequest("unable to save message"))
+            }
+            const subject = "Support Ticket - SalesVerse"
+            const htmlMessage = `<h3>Senders details:</h3> \
+            <ul>
+            <li>Name: ${firstName} ${lastName}</li>
+            <li>Email: ${email}</li>
+            <li>Company: ${companyName}</li>
+            <li>Employee count: ${employeeCount}</li>
+            </ul>
+            <p>
+            <h3>Message: </h3>
+            ${message}
+            </p>`
+            const sender = "neriwest20@gmail.com <support@salesverse.com>"
+            const receiver = "neriwest20@gmail.com"
+
+            const emailSent = await sendEmailAdjustable(sender, htmlMessage, receiver, subject)
+
+            if (!emailSent) return next(createError.InternalServerError("failed to send message"))
+            res.status(200).json({
+                message: "Thank you! Message received!"
+            })
+        })
+        
+    } catch (error) {
+        
+    }
 })
 
 app.use((req, res, next)=> {

@@ -24,12 +24,12 @@ campaignsRouter.post('/addcampaign', (req, res, next) => {
 
     const addCampaignQry =
     'INSERT INTO campaigns(name, commission,\
-    tax, goal_id, employee_id, entry_date)\
-    VALUES($1, $2, $3, $4, $5, $6)'
+    tax, goal_id, employee_id, entry_date, company_id)\
+    VALUES($1, $2, $3, $4, $5, $6, $7)'
 
     db.query(
         addCampaignQry,
-        [name, commission, tax, goalId, employeeId, entryDate],
+        [name, commission, tax, goalId, employeeId, entryDate, req.user.company_id],
         (err, result)=> {
             if ( err ) return next(createError.BadRequest(err.message))
 
@@ -96,13 +96,13 @@ campaignsRouter.get('/getcampaigns/all', (req, res, next) => {
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
-    const getSalesQry = 
+    const getCampaignsQry = 
     'SELECT campaigns.id as campaign_id, campaigns.name as campaign_name, campaigns.entry_date as entry_date,\
     commission, tax, goals.name as goal_name, hourly_sales, hourly_decisions, campaigns.goal_id as goal_id\
     FROM campaigns\
-    INNER JOIN goals ON goals.id = campaigns.goal_id  ORDER BY campaigns.entry_date DESC'
+    INNER JOIN goals ON goals.id = campaigns.goal_id WHERE campaigns.company_id = $1  ORDER BY campaigns.entry_date DESC'
 
-    db.query(getSalesQry, (err, result) => {
+    db.query(getCampaignsQry, [req.user.company_id], (err, result) => {
         if ( err ) {
             return next(createError.BadRequest(err.message))
         }

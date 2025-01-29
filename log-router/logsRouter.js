@@ -13,12 +13,12 @@ logsRouter.get('/getlogs', (req, res, next) => {
     campaigns.name as campaign_name from daily_logs\
     INNER JOIN employees ON daily_logs.employee_id = employees.id\
     INNER JOIN campaigns ON campaigns.id = employees.campaign_id\
-    WHERE login_date = $1 AND employee_role = 'sales associate'\
+    WHERE login_date = $1 AND employee_role = 'sales associate' AND daily_logs.company_id = $2\
     ORDER BY sales_per_hour DESC LIMit 5"
 
     const loginDate = getCurrentDate(req.user.timeZone)
 
-    db.query(qry, [loginDate], (err, result) => {
+    db.query(qry, [loginDate, req.user.company_id], (err, result) => {
         if (err) return next(createError.BadRequest(err.message))
 
         res.status(200).json({

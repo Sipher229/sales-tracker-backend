@@ -24,12 +24,12 @@ goalsRouter.post('/addgoal', (req, res, next) => {
     
     const addGoalQry =
     'INSERT INTO goals(name, hourly_sales,\
-    hourly_decisions, employee_id, entry_date)\
-    VALUES($1, $2, $3, $4, $5)'
+    hourly_decisions, employee_id, entry_date, company_id)\
+    VALUES($1, $2, $3, $4, $5, $6)'
 
     db.query(
         addGoalQry,
-        [name, hourlySales, hourlyDecisions, employeeId, entryDate],
+        [name, hourlySales, hourlyDecisions, employeeId, entryDate, req.user.company_id],
         (err)=> {
                 if ( err ) {
                     return next(createError.BadRequest(err.message))
@@ -101,9 +101,9 @@ goalsRouter.get('/getgoals/all', (req, res, next) => {
     }
     if (req.user.employee_role !== 'manager') return next(createError.Forbidden())
     const getSalesQry = 
-    'SELECT * FROM goals ORDER BY entry_date DESC'
+    'SELECT * FROM goals WHERE company_id = $1 ORDER BY entry_date DESC'
 
-    db.query(getSalesQry, (err, result) => {
+    db.query(getSalesQry, [req.user.company_id], (err, result) => {
         if ( err ) {
             return next(createError.BadRequest())
         }

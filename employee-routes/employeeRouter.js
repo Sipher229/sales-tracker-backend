@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt'
 import 'dotenv/config'
 import { differenceInHours, getCurrentDate, getCurrentDateTme } from '../dateFns.js'
 import sendEmail from '../sendEmail.js'
+import stripe from '../stripe.config.js'
 
 
 const employeeRouter = express.Router()
@@ -142,16 +143,20 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
     const {
         firstName,
         lastName, 
-        employeeNumber, 
+        employeeNumber,
+        employeeType, 
         username, 
         password,
         employeeRole,
         campaignId
     } = req.body
+    let empType = employeeType
+    if(!employeeType) empType = 'employee';
     const managerId = req.user.id
     const registerQry = 
-    'INSERT INTO employees(id, first_name, last_name, employee_number, email, password, employee_role, manager_id, campaign_id)\
-    VALUES(DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8) RETURNING id'
+    'INSERT INTO employees(id, first_name, last_name, employee_number, email,\
+    password, employee_role, manager_id, campaign_id, company_id, employee_type)\
+    VALUES(DEFAULT, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id'
 
     const emailExists = await verifyEmailExists(username.toLowerCase())
     if(!emailExists){
@@ -160,13 +165,36 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
                 next(createError.InternalServerError())
             }
             db.query(registerQry, [firstName.trim(), lastName.trim(), employeeNumber, username.toLowerCase(), 
-                hash, employeeRole, managerId, campaignId],
-                
-                (error, result)=>{
+                hash, employeeRole, managerId, campaignId, req.user.company_id, empType],
+                async (error, result)=>{
                     if (error) {
                         next(createError.BadRequest(error.message))
                     }
                     else{
+                        const employeeCount = (await db.query("SELECT COUNT(*) FROM employees WHERE company_id = $1", [req.user.company_id])).rows[0].count;
+                        const stripeSubscription = (await db.query("SELECT * FROM subscriptions WHERE company_id = $1",
+                            [req.user.company_id]
+                        ));
+                        const stripeSubscriptionId = stripeSubscription.rows[0].stripe_subscription_id;
+                        const stripeProductId = stripeSubscription.rows[0].stripe_product_id;
+
+                        const baseCharge = 1000; // Fixed charge
+                        const perEmployeeCharge = 10; // Charge per employee
+                        const totalAmount = (baseCharge + (employeeCount * perEmployeeCharge)) * 100;
+                        const newPrice = await stripe.prices.create({
+                            unit_amount: totalAmount, // Total amount in cents
+                            currency: 'cad',
+                            recurring: { interval: 'month' }, // Monthly subscription
+                            product: stripeProductId,
+                        });
+                        await stripe.subscriptions.update(stripeSubscriptionId, {
+                            items: [
+                                {
+                                    price: newPrice.id,
+                                    quantity: 1, // Keep as 1 since price already includes per-employee calculation
+                                },
+                            ],
+                        });
                         res.status(200).json({
                             message: "successfully registered the employee",
                             usename: result.rows[0].id
@@ -210,13 +238,37 @@ employeeRouter.delete('/delete/:id', async (req, res, next) => {
     try {
         const response = await deleteEmployee(id)
         if (response) {
+            const employeeCount = (await db.query("SELECT COUNT(*) FROM employees WHERE company_id = $1", [req.user.company_id])).rows[0].count;
+            const stripeSubscription = (await db.query("SELECT * FROM subscriptions WHERE company_id = $1",
+                [req.user.company_id]
+            ));
+            const stripeSubscriptionId = stripeSubscription.rows[0].stripe_subscription_id;
+            const stripeProductId = stripeSubscription.rows[0].stripe_product_id;
 
+            const baseCharge = 1000; // Fixed charge
+            const perEmployeeCharge = 10; // Charge per employee
+            const totalAmount = (baseCharge + (employeeCount * perEmployeeCharge)) * 100;
+            const newPrice = await stripe.prices.create({
+                unit_amount: totalAmount, // Total amount in cents
+                currency: 'cad',
+                recurring: { interval: 'month' }, // Monthly subscription
+                product: stripeProductId,
+            });
+            await stripe.subscriptions.update(stripeSubscriptionId, {
+                items: [
+                    {
+                        price: newPrice.id,
+                        quantity: 1, // Keep as 1 since price already includes per-employee calculation
+                    },
+                ],
+            });
+            
             return res.status(200).json({
                 message:'Employee deleted susccessfully'
             })
         }
         else{
-            return next(createError.InternalServerError())
+            return next(createError.InternalServerError("failed to delete employee"))
         }
     } catch (error) {
         return next(createError.InternalServerError(error.message))
@@ -291,16 +343,42 @@ employeeRouter.patch('/editemployee/:id', (req, res, next) => {
     employee_role=$4, employee_number=$5, campaign_id =$6, manager_id = $7\
     WHERE id = $8'
 
-    db.query(editQry, [firstName, lastName, username, employeeRole, employeeNumber, campaignId, managerId, id],
-    (err) => {
-    if (err) {
-        return next(createError.BadRequest(err.message))
-    }
+    db.query(
+        editQry, [firstName, lastName, username, employeeRole, employeeNumber, campaignId, managerId, id],
+        async (err) => {
+            if (err) {
+                return next(createError.BadRequest(err.message))
+            }
+            const employeeCount = (await db.query("SELECT COUNT(*) FROM employees WHERE company_id = $1", [req.user.company_id])).rows[0].count;
+            const stripeSubscription = (await db.query("SELECT * FROM subscriptions WHERE company_id = $1",
+                [req.user.company_id]
+            ));
+            const stripeSubscriptionId = stripeSubscription.rows[0].stripe_subscription_id;
+            const stripeProductId = stripeSubscription.rows[0].stripe_product_id;
 
-        res.status( 200 ).json({
-            message: 'Changes saved successfully',
-        })
-    })
+            const baseCharge = 1000; // Fixed charge
+            const perEmployeeCharge = 10; // Charge per employee
+            const totalAmount = (baseCharge + (employeeCount * perEmployeeCharge)) * 100;
+            const newPrice = await stripe.prices.create({
+                unit_amount: totalAmount, // Total amount in cents
+                currency: 'cad',
+                recurring: { interval: 'month' }, // Monthly subscription
+                product: stripeProductId,
+            });
+            await stripe.subscriptions.update(stripeSubscriptionId, {
+                items: [
+                    {
+                        price: newPrice.id,
+                        quantity: 1, // Keep as 1 since price already includes per-employee calculation
+                    },
+                ],
+            });
+
+            res.status( 200 ).json({
+                message: 'Changes saved successfully',
+            })
+        }
+    )
 })
 
 employeeRouter.get('/getemployee', async  (req, res, next) => {
@@ -314,23 +392,36 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
         const empId = req.user.id
 
         const getEmployeeQry = 
-        `SELECT employees.id as id, first_name , last_name, employee_number , email, employee_role, goals.name as goalName,\
+        `SELECT employees.id as id, first_name , last_name, employee_number ,employee_type, email, employee_role, goals.name as goalName,\
         goals.hourly_decisions as hourlyDecisions, goals.hourly_sales as hourlySales, campaigns.id as emp_campaign_id,\
-        campaigns.name as campaignName, shift_duration, employees.campaign_id as campaign_id, login_time as login_time, sales_per_hour, daily_logs.commission as closingCommission\
+        campaigns.name as campaignName, shift_duration, employees.campaign_id as campaign_id, login_time as login_time, \
+        sales_per_hour, daily_logs.commission as closingCommission, employees.company_id as company_id\
         FROM campaigns INNER JOIN goals ON goals.id = campaigns.goal_id RIGHT JOIN employees\
         ON campaigns.id = employees.campaign_id INNER JOIN daily_logs ON employees.id = daily_logs.employee_id\
         WHERE employees.id = $1 AND login_date = $2`
         
-        db.query(getEmployeeQry, [empId, loginDate], (err, result) => {
+        db.query(getEmployeeQry, [empId, loginDate], async (err, result) => {
             if (err) return next(createError.BadRequest(err.message))
             
-            const employee = result.rows
+            const employee = result.rows;
+
+            try {
+                
+                const subscriptionStatus= (await (db.query("SELECT status FROM subscriptions WHERE company_id = $1", [req.user.company_id]))).rows[0]?.status;
+
+                const subscriptionIsActive = subscriptionStatus === "trialing" || subscriptionStatus === "active"
+
+                return res.status(200).json({
+                    requestedData: employee,
+                    message: 'retrieved data successfully',
+                    subscriptionIsActive,
+                })
+
+            } catch (error) {
+                console.error(error.message)
+                return next(createError.InternalServerError("failed to get subscription status"))
+            }
             
-        
-            return res.status(200).json({
-                requestedData: employee,
-                message: 'retrieved data successfully'
-            })
         })
 
     }
@@ -365,23 +456,23 @@ employeeRouter.get('/getemployee/:id', async (req, res, next) => {
     
 })
 
-employeeRouter.get('/getmanagers', async (req, res, next) => {
-    if ( ! req.isAuthenticated() ) return next( createError.Unauthorized() )
+// employeeRouter.get('/getmanagers', async (req, res, next) => {
+//     if ( ! req.isAuthenticated() ) return next( createError.Unauthorized() )
 
-    const getManagersQry = 'SELECT * FROM employees WHERE employee_role = $1'
+//     const getManagersQry = 'SELECT * FROM employees WHERE employee_role = $1'
 
-    try{
-        const result = await db.query(getManagersQry, ['manager'])
-        return res.status(200).json({
-            message: "data retrieved successfully",
-            requestedData: result.rows
-        })
-    }
-    catch (error) {
-        return next ( createError.BadRequest(error.message) )
-    }
+//     try{
+//         const result = await db.query(getManagersQry, ['manager'])
+//         return res.status(200).json({
+//             message: "data retrieved successfully",
+//             requestedData: result.rows
+//         })
+//     }
+//     catch (error) {
+//         return next ( createError.BadRequest(error.message) )
+//     }
     
-})
+// })
 
 employeeRouter.patch('/assign/managerId', (req, res, next) => {
     if ( !req.isAuthenticated() ) return next( createError.Unauthorized() )
@@ -510,9 +601,9 @@ employeeRouter.get('/getemployees/all', (req, res, next) => {
     goals.name as goal_name, manager_id, employees.campaign_id as campaign_id\
     FROM employees\
     FULL JOIN campaigns ON campaigns.id = employees.campaign_id\
-    INNER JOIN goals ON goals.id = campaigns.goal_id WHERE first_name IS NOT NULL '
+    FULL JOIN goals ON goals.id = campaigns.goal_id WHERE first_name IS NOT NULL  AND employees.company_id = $1'
     
-    db.query(qry, (err, result) => {
+    db.query(qry, [req.user.company_id], (err, result) => {
         if ( err ) return next( createError.BadRequest(err.message) )
         return res.status(200).json({
             message: 'data retrieved successfull',
@@ -559,7 +650,7 @@ employeeRouter.post('/confirmemail', async (req, res, next) => {
     const createdAt = getCurrentDateTme(req.user.timeZone)
     const htmlEmail = `<p>Please use the following passcode to confirm your email\
     in the weedman sales tracker: <br> <b>${otp}</b> <br> Please note that the code is only\
-    valid for 30 minutes <br> <br> Kind regards, <br> Weedman Sales Tracker Team</p>`
+    valid for 30 minutes <br> <br> Kind regards, <br> SalesVerse Support Team</p>`
 
     const qry = 
     'INSERT INTO otps(id, otp_value, created_at) VALUES(default, $1, $2) RETURNING id'

@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import 'dotenv/config'
 
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -6,17 +7,17 @@ const transporter = nodemailer.createTransport({
     secure: false,
     auth:{
         user: 'neriwest20@gmail.com',
-        pass: 'dieb orac jwkt diqt'
+        pass: process.env.NODEMAILER_PASS
     }
 })
 
 const sendEmail =  async (html, receiver) => {
     try {
         const result = await transporter.sendMail({
-            from: 'salestracker@weedman.com <neriwest20@gmail.com',
+            from: 'supportteam@salesverse.com <neriwest20@gmail.com',
             to: receiver,
             html: html,
-            subject: 'One Time Passcode - Sales Tracker'
+            subject: 'One Time Passcode - SalesVerse'
     
         })
         return result
@@ -26,6 +27,22 @@ const sendEmail =  async (html, receiver) => {
         return false
     }
 
+}
+const sendEmailAdjustable = async (sender, html, receiver, subject) => {
+    try {
+        const result = await transporter.sendMail({
+            from: sender,
+            to: receiver,
+            html: html,
+            subject: subject
+    
+        })
+        return result
+        
+    } catch (error) {
+        console.log(error.message)
+        return false
+    }
 }
 
 transporter.verify((err, success) => {
@@ -37,5 +54,6 @@ transporter.verify((err, success) => {
         console.log('connected to smtp server successfully')
     }
 })
+export {sendEmailAdjustable}
 export default sendEmail
 

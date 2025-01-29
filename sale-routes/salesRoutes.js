@@ -87,12 +87,12 @@ salesRoutes.post('/addsale', async (req, res, next) => {
     
     const addSaleQry = 
     'INSERT INTO sales(customer_number, campaign_id,\
-    sale_name, price, discount, tax, commission, employee_id, entry_date)\
-    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)'
+    sale_name, price, discount, tax, commission, employee_id, entry_date, company_id)\
+    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)'
 
     db.query(
         addSaleQry,
-        [customerNumber, campaignId, name, price, discount, tax, commission, employeeId, loginDate],
+        [customerNumber, campaignId, name, price, discount, tax, commission, employeeId, loginDate, req.user.company_id],
         async (err, result) => {
             
             if( err ) return next(createError.BadRequest(err.message))
@@ -254,7 +254,7 @@ salesRoutes.get('/getsales/employee/:id', (req, res, next) => {
     'SELECT sale_name, name, sales.commission, sales.tax,\
     customer_number, discount, sales.entry_date, sales.id as id,\
     sales.campaign_id as campaign_id, price FROM sales INNER JOIN campaigns ON\
-    campaign.id = sales.campaign_id WHERE id = $1'
+    campaign.id = sales.campaign_id WHERE sales.employee_id = $1'
 
     const id = req.params.id
     
