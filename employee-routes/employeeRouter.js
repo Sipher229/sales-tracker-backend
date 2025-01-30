@@ -596,12 +596,13 @@ employeeRouter.get('/getemployees/all', (req, res, next) => {
 
 
     const qry = 
-    'SELECT first_name, last_name, email, employee_role,\
+    `SELECT first_name, last_name, email, employee_role,\
     employee_number, employees.id as id, campaigns.name as campaign_name,\
     goals.name as goal_name, manager_id, employees.campaign_id as campaign_id\
     FROM employees\
     FULL JOIN campaigns ON campaigns.id = employees.campaign_id\
-    FULL JOIN goals ON goals.id = campaigns.goal_id WHERE first_name IS NOT NULL  AND employees.company_id = $1'
+    FULL JOIN goals ON goals.id = campaigns.goal_id WHERE first_name \
+    IS NOT NULL  AND employees.company_id = $1 AND  employee_role != 'manager'`
     
     db.query(qry, [req.user.company_id], (err, result) => {
         if ( err ) return next( createError.BadRequest(err.message) )
