@@ -153,7 +153,7 @@ const handleSubscriptionDeleted = async (recipient, firstName) => {
 registrationRouter.get("/config", (req, res) => {
 
     res.status(200).json({
-        publishableKey: process.env.STRIPE_PUBLISHABLE_KEY
+        publishableKey: process.env.STRIPE_PROD_PUBLISHABLE_KEY
     })
 })
 
@@ -412,10 +412,9 @@ registrationRouter.post("/login-after-registration", async (req, res, next) => {
 
 registrationRouter.post("/webhook", express.raw({type: 'application/json'}), async (req, res) => {
     const sig = req.headers['stripe-signature'];
-    const endpointSecret = process.env.STRIPE_SIGNING_SECRET;
+    const endpointSecret = process.env.STRIPE_PROD_SIGNING_SECRET;
     const getUserQry = "SELECT first_name, email from companies INNER JOIN employees \
     ON companies.id = employees.company_id WHERE stripe_customer_id = $1 and employee_type = 'super employee'"
-    console.log("webhook")
 
     let event;
     try {
@@ -454,7 +453,6 @@ registrationRouter.post("/webhook", express.raw({type: 'application/json'}), asy
             case 'payment_method.attached':
                 break;
             case 'setup_intent.succeeded':
-
                 break;
             default:
                 console.log(`Unhandled event type ${event.type}`);
