@@ -203,7 +203,8 @@ registrationRouter.post("/save-subscription", async (req, res, next) => {
 
     if (!paymentMethodId || !companyId || !companyName || !email) return next(createError.NotFound("Missing parameters"));
     const pricePerEmployee = 1000;
-    const totalAmount = (0 * pricePerEmployee) + (100 * 1000);
+    const basePrice = 150;
+    const totalAmount = (0 * pricePerEmployee) + (100 * basePrice);
     const addSubscriptionQry = 'INSERT INTO subscriptions (company_id, stripe_subscription_id, status, trial_ends_at, next_billing_date, stripe_product_id) VALUES ($1, $2, $3, $4, $5, $6)';
     const updateSuscriptionQry = 'UPDATE subscriptions SET company_id = $1, stripe_subscription_id=$2, status=$3, trial_ends_at=$4, next_billing_date=$5 WHERE company_id =$6';
 
@@ -257,7 +258,7 @@ registrationRouter.post("/save-subscription", async (req, res, next) => {
             subscription  = await stripe.subscriptions.update(
                 existingSubscription.rows[0].stripe_subscription_id, 
                 {
-                    metadata: { companyId },
+                    metadata: { companyId, email },
                 }
             )
             await db.query(
@@ -414,6 +415,7 @@ registrationRouter.post("/webhook", express.raw({type: 'application/json'}), asy
     const endpointSecret = process.env.STRIPE_SIGNING_SECRET;
     const getUserQry = "SELECT first_name, email from companies INNER JOIN employees \
     ON companies.id = employees.company_id WHERE stripe_customer_id = $1 and employee_type = 'super employee'"
+    console.log("webhook")
 
     let event;
     try {
@@ -441,6 +443,7 @@ registrationRouter.post("/webhook", express.raw({type: 'application/json'}), asy
                 await handlePaymentFailed(email, first_name);
                 break;
             case 'customer.subscription.updated':
+                console.log(event.type, "envent handled");
                 break;
             case 'customer.subscription.trial_will_end':
                 await handleTrialEnd(email, first_name);

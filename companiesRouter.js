@@ -125,15 +125,10 @@ companiesRouter.post("/save-subscription", async (req, res, next) => {
             WHERE company_id =$6';
             const employeeCount = (await db.query("SELECT COUNT(*) FROM employees WHERE company_id = $1", [req.user.company_id])).rows[0].count;
 
-            const {stripe_customer_id, company_name, } = (await db.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id])).rows[0];
+            const {stripe_customer_id, } = (await db.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id])).rows[0];
 
-            const baseCharge = 1000; // Fixed charge
+            const baseCharge = 150; // Fixed charge
             const perEmployeeCharge = 10; // Charge per employee
-
-            const product = await stripe.products.create({
-                name: `${company_name} Subscription`,
-                metadata: {companyId: req.user.company_id}
-            });
 
             const totalAmount = (baseCharge + (employeeCount * perEmployeeCharge)) * 100;
 
