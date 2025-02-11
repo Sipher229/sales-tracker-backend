@@ -2,11 +2,11 @@ import nodemailer from 'nodemailer'
 import 'dotenv/config'
 
 const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
+    host: process.env.NODEMAILER_SMTP_HOST,
+    port: 465,
+    secure: true,
     auth:{
-        user: 'neriwest20@gmail.com',
+        user: process.env.NODEMAILER_USERNAME,
         pass: process.env.NODEMAILER_PASS
     }
 })
@@ -14,7 +14,7 @@ const transporter = nodemailer.createTransport({
 const sendEmail =  async (html, receiver) => {
     try {
         const result = await transporter.sendMail({
-            from: 'supportteam@salesverse.com <neriwest20@gmail.com',
+            from: 'customer.support@salesverse.org',
             to: receiver,
             html: html,
             subject: 'One Time Passcode - SalesVerse'

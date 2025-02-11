@@ -205,7 +205,9 @@ app.delete("/api/logout", (req, res, next) => {
             })
         })
     }else{
-        return next(createError.Unauthorized())
+        return res.status(200).json({
+            message: "No logged in user"
+        });
     }
     
 })

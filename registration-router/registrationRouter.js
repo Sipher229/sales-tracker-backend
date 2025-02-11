@@ -5,6 +5,7 @@ import 'dotenv/config'
 import stripe from "../stripe.config.js"
 import bcrypt from 'bcrypt'
 import { getCurrentDate, getCurrentDateTme } from '../dateFns.js'
+import {sendEmailAdjustable} from '../sendEmail.js'
 
 const registrationRouter = express.Router()
 
@@ -53,7 +54,7 @@ const handleSubscriptionCreated = async (recipient, firstName) => {
         Kind Regards, <br /> <br />
         SalesVerse Customer Service Team
     </p>`
-    const sender = "neriwest20@gmail.com <customer.service@salesverse.com>";
+    const sender = "customer.support@salesverse.org";
 
     const emailSent = await sendEmailAdjustable(sender, htmlMessage, recipient, subject);
 
@@ -74,7 +75,7 @@ const handlePaymentSucceeded = async (recipient, firstName) => {
         Kind Regards, <br /> 
         SalesVerse Customer Service Team
     </p>`
-    const sender = "neriwest20@gmail.com <customer.service@salesverse.com>";
+    const sender = "customer.support@salesverse.org";
 
     const emailSent = await sendEmailAdjustable(sender, htmlMessage, recipient, subject);
 
@@ -94,7 +95,7 @@ const handleTrialEnd = async (recipient, firstName) => {
         Kind Regards, <br /> <br />
         SalesVerse Customer Service Team
     </p>`
-    const sender = "neriwest20@gmail.com <customer.service@salesverse.com>";
+    const sender = "customer.support@salesverse.org";
 
     const emailSent = await sendEmailAdjustable(sender, htmlMessage, recipient, subject);
 
@@ -117,7 +118,7 @@ const handlePaymentFailed = async (recipient, firstName) => {
         Kind Regards, <br /> <br />
         SalesVerse Customer Service Team
     </p>`
-    const sender = "neriwest20@gmail.com <customer.service@salesverse.com>";
+    const sender = "customer.support@salesverse.org";
 
     const emailSent = await sendEmailAdjustable(sender, htmlMessage, recipient, subject);
 
@@ -138,7 +139,7 @@ const handleSubscriptionDeleted = async (recipient, firstName) => {
         Kind Regards, <br /> <br />
         SalesVerse Customer Service Team
     </p>`
-    const sender = "neriwest20@gmail.com <customer.service@salesverse.com>";
+    const sender = "customer.support@salesverse.org";
 
     const emailSent = await sendEmailAdjustable(sender, htmlMessage, recipient, subject);
 

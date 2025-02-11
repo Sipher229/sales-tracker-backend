@@ -48,8 +48,12 @@ companiesRouter.post("/create-setup-intent", async (req, res, next) => {
     if (req.user && req.user.employee_type !== "super employee") return next(createError.Forbidden());
 
     try {
+        const customerId = (await db.query("SELECT stripe_customer_id FROM companies WHERE id = $1",
+            [req.user.company_id]
+        )).rows[0].stripe_customer_id;
     
         const setupIntent = await stripe.setupIntents.create({
+            customer: customerId,
             payment_method_types: ['card']
         });
 
