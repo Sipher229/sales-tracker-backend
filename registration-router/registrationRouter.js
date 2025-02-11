@@ -52,7 +52,8 @@ const handleSubscriptionCreated = async (recipient, firstName) => {
         the quick start guide in the "job aids" section. Please don't hesitate to contact <br />
         us with any question by replying to this email. <br /> <br />
         Kind Regards, <br /> <br />
-        SalesVerse Customer Service Team
+        SalesVerse Customer Service Team <br />
+        <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />
     </p>`
     const sender = "customer.support@salesverse.org";
 
@@ -73,7 +74,8 @@ const handlePaymentSucceeded = async (recipient, firstName) => {
         Dear ${firstName}, <br /> <br />
         Thank you for your payment. <br /> 
         Kind Regards, <br /> 
-        SalesVerse Customer Service Team
+        SalesVerse Customer Service Team <br />
+        <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />
     </p>`
     const sender = "customer.support@salesverse.org";
 
@@ -93,7 +95,8 @@ const handleTrialEnd = async (recipient, firstName) => {
         Dear ${firstName}, <br /> <br />
         Please be advised that your trial period will be ending in three days from now. <br /> 
         Kind Regards, <br /> <br />
-        SalesVerse Customer Service Team
+        SalesVerse Customer Service Team <br />
+        <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />
     </p>`
     const sender = "customer.support@salesverse.org";
 
@@ -116,7 +119,8 @@ const handlePaymentFailed = async (recipient, firstName) => {
         click update and follow the instructions. Please don't hesitate to reach out with any questions by replying <br />
         to this email. <br /> <br /> 
         Kind Regards, <br /> <br />
-        SalesVerse Customer Service Team
+        SalesVerse Customer Service Team <br />
+        <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />
     </p>`
     const sender = "customer.support@salesverse.org";
 
@@ -137,7 +141,8 @@ const handleSubscriptionDeleted = async (recipient, firstName) => {
         We are sorry to see you go. Please reply to this email and let us know what we can do <br />
         to improve our services <br /> <br /> 
         Kind Regards, <br /> <br />
-        SalesVerse Customer Service Team
+        SalesVerse Customer Service Team <br />
+        <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />
     </p>`
     const sender = "customer.support@salesverse.org";
 

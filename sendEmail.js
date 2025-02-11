@@ -17,7 +17,12 @@ const sendEmail =  async (html, receiver) => {
             from: 'customer.support@salesverse.org',
             to: receiver,
             html: html,
-            subject: 'One Time Passcode - SalesVerse'
+            subject: 'One Time Passcode - SalesVerse',
+            attachments: [{
+                filename: 'logo-png.png',
+                path: './image-resources/logo-png.png',
+                cid: 'logo'
+            }]
     
         })
         return result
@@ -34,8 +39,12 @@ const sendEmailAdjustable = async (sender, html, receiver, subject) => {
             from: sender,
             to: receiver,
             html: html,
-            subject: subject
-    
+            subject: subject,
+            attachments: [{
+                filename: 'logo-png.png',
+                path: './image-resources/logo-png.png',
+                cid: 'logo'
+            }]   
         })
         return result
         
@@ -54,6 +63,9 @@ transporter.verify((err, success) => {
         console.log('connected to smtp server successfully')
     }
 })
+// const html = "<img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />"
+// sendEmail(html, "neriwest20@gmail.com");
+
 export {sendEmailAdjustable}
 export default sendEmail
 
