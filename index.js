@@ -235,8 +235,8 @@ app.post("/api/contact-us", (req, res, next) => {
             <h3>Message: </h3>
             ${message}
             </p>`
-            const sender = "neriwest20@gmail.com <support@salesverse.com>"
-            const receiver = "neriwest20@gmail.com"
+            const sender = "customer.support@salesverse.org";
+            const receiver = "customer.support@salesverse.org";
 
             const emailSent = await sendEmailAdjustable(sender, htmlMessage, receiver, subject)
 
