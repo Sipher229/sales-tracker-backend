@@ -209,7 +209,7 @@ registrationRouter.post("/save-subscription", async (req, res, next) => {
 
     if (!paymentMethodId || !companyId || !companyName || !email) return next(createError.NotFound("Missing parameters"));
     const pricePerEmployee = 1000;
-    const basePrice = 150;
+    const basePrice = 0;
     const totalAmount = (0 * pricePerEmployee) + (100 * basePrice);
     const addSubscriptionQry = 'INSERT INTO subscriptions (company_id, stripe_subscription_id, status, trial_ends_at, next_billing_date, stripe_product_id) VALUES ($1, $2, $3, $4, $5, $6)';
     const updateSuscriptionQry = 'UPDATE subscriptions SET company_id = $1, stripe_subscription_id=$2, status=$3, trial_ends_at=$4, next_billing_date=$5 WHERE company_id =$6';

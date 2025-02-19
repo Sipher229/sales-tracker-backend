@@ -131,7 +131,7 @@ companiesRouter.post("/save-subscription", async (req, res, next) => {
 
             const {stripe_customer_id, } = (await db.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id])).rows[0];
 
-            const baseCharge = 150; // Fixed charge
+            const baseCharge = 0; // Fixed charge
             const perEmployeeCharge = 10; // Charge per employee
 
             const totalAmount = (baseCharge + (employeeCount * perEmployeeCharge)) * 100;

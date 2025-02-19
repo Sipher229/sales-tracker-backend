@@ -178,7 +178,7 @@ employeeRouter.post('/addemployee', async (req, res, next) => {
                         const stripeSubscriptionId = stripeSubscription.rows[0].stripe_subscription_id;
                         const stripeProductId = stripeSubscription.rows[0].stripe_product_id;
 
-                        const baseCharge = 150; // Fixed charge
+                        const baseCharge = 0; // Fixed charge
                         const perEmployeeCharge = 10; // Charge per employee
                         const totalAmount = (baseCharge + (employeeCount * perEmployeeCharge)) * 100;
                         const newPrice = await stripe.prices.create({
@@ -245,7 +245,7 @@ employeeRouter.delete('/delete/:id', async (req, res, next) => {
             const stripeSubscriptionId = stripeSubscription.rows[0].stripe_subscription_id;
             const stripeProductId = stripeSubscription.rows[0].stripe_product_id;
 
-            const baseCharge = 150; // Fixed charge
+            const baseCharge = 0; // Fixed charge
             const perEmployeeCharge = 10; // Charge per employee
             const totalAmount = (baseCharge + (employeeCount * perEmployeeCharge)) * 100;
             const newPrice = await stripe.prices.create({
@@ -356,7 +356,7 @@ employeeRouter.patch('/editemployee/:id', (req, res, next) => {
             const stripeSubscriptionId = stripeSubscription.rows[0].stripe_subscription_id;
             const stripeProductId = stripeSubscription.rows[0].stripe_product_id;
 
-            const baseCharge = 150; // Fixed charge
+            const baseCharge = 0; // Fixed charge
             const perEmployeeCharge = 10; // Charge per employee
             const totalAmount = (baseCharge + (employeeCount * perEmployeeCharge)) * 100;
             const newPrice = await stripe.prices.create({
