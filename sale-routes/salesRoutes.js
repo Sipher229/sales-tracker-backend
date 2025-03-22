@@ -109,7 +109,7 @@ salesRoutes.post('/addsale', async (req, res, next) => {
 })
 
 salesRoutes.patch('/update/salesperhour', async (req, res, next) => {
-    if (!req.isAuthenticated() ) return next(createError.Unauthorized())
+    if (!req.isAuthenticated() ) return next(createError.Unauthorized());
 
     const loginDate = getCurrentDate(req.user.timeZone)
     const {loginTime, shiftDuration} = await getLoginTime(req.user.id, loginDate)

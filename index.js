@@ -85,14 +85,14 @@ app.use('/api/jobaids', jobAidRouter)
 app.use('/api/registration', registrationRouter)
 app.use('/api/companies', companiesRouter)
 
-const updateLoginTime =  async (loginDate, loginTimeAndDate, employeeId) => {
+const updateLoginTime =  async (loginDate, loginTimeAndDate, employeeId, companyId) => {
     const qry = 
-    'INSERT INTO daily_logs(login_time, login_date, employee_id, shift_duration)\
-    VALUES($1, $2, $3, 8)'
+    'INSERT INTO daily_logs(login_time, login_date, employee_id, shift_duration, company_id)\
+    VALUES($1, $2, $3, 8, $4)'
    
 
     try {
-        const response = await db.query(qry, [loginTimeAndDate, loginDate , employeeId])
+        const response = await db.query(qry, [loginTimeAndDate, loginDate , employeeId, companyId])
         return true
     } catch (error) {
         console.log(error.message)
@@ -137,7 +137,7 @@ app.post('/api/login', (req, res, next) => {
             const loggedInToday = await verifyLoggedInToday(username, loginDate)
 
             if ( !loggedInToday ){
-                await updateLoginTime(loginDate, timeAndDate, req.user.id)
+                await updateLoginTime(loginDate, timeAndDate, req.user.id, req.user.company_id)
             
             }
 
