@@ -130,6 +130,11 @@ const deleteSalesByEmployee = async (id) => {
 // ---------------------------------------------------------------------------------------
 
 // ============================================ routes =======================================
+employeeRouter.get("/is-logged-in", (req, res) => {
+    return res.status(200).json({
+        isLoggedIn: req.isAuthenticated()
+    });
+});
 
 employeeRouter.post('/addemployee', async (req, res, next) => {
 
