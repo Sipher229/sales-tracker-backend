@@ -73,7 +73,11 @@ salesRoutes.post('/addsale', async (req, res, next) => {
         commission, 
         tax,
         employeeId,
+        status,
+        details,
     } = req.body
+
+    if (!status) return next(createError.NotFound("missing params"));
 
     const loginDate = getCurrentDate(req.user.timeZone)
     const {loginTime, shiftDuration} = await getLoginTime(req.user.id, loginDate)
@@ -87,19 +91,21 @@ salesRoutes.post('/addsale', async (req, res, next) => {
     
     const addSaleQry = 
     'INSERT INTO sales(customer_number, campaign_id,\
-    sale_name, price, discount, tax, commission, employee_id, entry_date, company_id)\
-    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)'
+    sale_name, price, discount, tax, commission, employee_id, entry_date, company_id, status, details)\
+    VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)'
 
     db.query(
         addSaleQry,
-        [customerNumber, campaignId, name, price, discount, tax, commission, employeeId, loginDate, req.user.company_id],
+        [customerNumber, campaignId, name, price, discount, tax, commission, employeeId, loginDate, req.user.company_id, status, details],
         async (err, result) => {
             
-            if( err ) return next(createError.BadRequest(err.message))
+            if( err ) return next(createError.BadRequest(err.message));
+            if (status.toLowerCase() === "closed"){
 
-            const logsUpdated = await updateSalesForLogs(hoursLoggedIn, employeeId, loginDate, shiftDuration)
-
-            if (!logsUpdated) console.log('failed to update logs')
+                const logsUpdated = await updateSalesForLogs(hoursLoggedIn, employeeId, loginDate, shiftDuration)
+    
+                if (!logsUpdated) console.log('failed to update logs')
+            }
             
             return res.status(200).json({
                 message: 'added sale successfully',
@@ -176,26 +182,33 @@ salesRoutes.patch('/editsale/:id', (req, res, next)=> {
         commission, 
         tax,
         entryDate,
+        status,
+        details
     } = req.body
     const {id} = req.params
     const employeeId = req.user.id
-
+    if (!status) return next(createError.NotFound("Missing parameters"));
+    
     const editSaleQry = 'UPDATE sales SET customer_number = $1, campaign_id = $2,\
-    sale_name = $3, price = $4, discount = $5, tax = $6, commission = $7\
-    WHERE id = $8'
+    sale_name = $3, price = $4, discount = $5, tax = $6, commission = $7, status = $8, details = $9\
+    WHERE id = $10'
 
     db.query(
         editSaleQry,
-        [customerNumber, campaignId, name, price, discount, tax, commission, id],
+        [customerNumber, campaignId, name, price, discount, tax, commission, status, details, id],
         async (err) => {
             if ( err ) {
                 console.log(err.message)
                 return next(createError.BadRequest(err.message))
             }
 
-            const logsUpdated = await updateLogsAfterEdit(employeeId, entryDate)
-            
-            if ( !logsUpdated ) console.log('failed to update logs after sale edit')
+            if (status.toLowerCase() === "closed") {
+
+                const logsUpdated = await updateLogsAfterEdit(employeeId, entryDate)
+                
+                if ( !logsUpdated ) console.log('failed to update logs after sale edit');
+            }
+
             
             return res.status(200).json({
                 message: 'succesfully updated the sale'
@@ -204,17 +217,74 @@ salesRoutes.patch('/editsale/:id', (req, res, next)=> {
     )
 })
 
+salesRoutes.get('/get-commission', (req, res, next) => {
+
+    if (!req.isAuthenticated()) return next(createError.Unauthorized());
+
+    const {date, id} = req.query;
+
+    if (!date || !id) return next(createError.NotFound("Missing parameters."));
+
+    const qry = "SELECT commission FROM daily_logs WHERE employee_id = $1 AND login_date = $2";
+
+    db.query(qry, [id, date], (err, result) => {
+        if (err) return next(createError.InternalServerError(err.message));
+        
+        if (result.rows.length !== 0){
+            return res.status(200).json({
+                commission: result.rows[0]?.commission,
+                message: "data successfully retrieved",
+            })
+        }
+        else{
+            return res.status(200).json({
+                commission: null,
+                message: "data successfully retrieved",
+            })
+        }
+    })
+})
+
+salesRoutes.get('/get-commission/:id', (req, res, next) => {
+
+    if (!req.isAuthenticated()) return next(createError.Unauthorized());
+
+    const {id} = req.params;
+    const date = getCurrentDate(req.user.timeZone)
+
+    if (!date || !id) return next(createError.NotFound("Missing parameters."));
+
+    const qry = "SELECT commission FROM daily_logs WHERE employee_id = $1 AND login_date = $2";
+
+    db.query(qry, [id, date], (err, result) => {
+        if (err) return next(createError.InternalServerError());
+        
+        if (result.rows.length !== 0){
+            return res.status(200).json({
+                commission: result.rows[0]?.commission,
+                message: "data successfully retrieved",
+            })
+        }
+        else{
+            return res.status(200).json({
+                commission: null,
+                message: "data successfully retrieved",
+            })
+        }
+    })
+})
+
 salesRoutes.get('/getsales/all', (req, res, next) => {
     if(!req.isAuthenticated()){
         return next(createError.Unauthorized())
     }
-    
+    const entryDate = getCurrentDate(req.user.timeZone)
     const getSalesQry = 
-    'SELECT sale_name, sales.id as id, customer_number, sales.commission, sales.tax, sales.price, campaign_id, sales.discount, sales.entry_date, campaigns.name as name FROM SALES\
-    INNER JOIN campaigns ON campaigns.id = sales.campaign_id  WHERE sales.employee_id = $1\
-    ORDER BY sales.entry_date DESC LIMIT 30'
+    'SELECT sale_name, sales.id as id, customer_number, sales.commission, sales.tax, sales.price, campaign_id, sales.discount, sales.entry_date, sales.status, sales.details, campaigns.name as name FROM SALES\
+    INNER JOIN campaigns ON campaigns.id = sales.campaign_id  WHERE sales.employee_id = $1 AND sales.entry_date = $2\
+    ORDER BY sales.entry_date DESC'
     const empId = req.user.id
-    db.query(getSalesQry, [empId], (err, result) => {
+    db.query(getSalesQry, [empId, entryDate], (err, result) => {
         if ( err ) {
             console.log(err.message)
             return next(createError.BadRequest(err.message))
@@ -234,7 +304,7 @@ salesRoutes.get('/getsales/:date', (req, res, next) => {
     const desiredDate = req.params.date
     const getSalesQry = 
     'SELECT sale_name, sales.id as id, customer_number, sales.commission, sales.tax, sales.price, campaign_id,\
-    sales.discount, sales.entry_date, campaigns.name as name FROM SALES\
+    sales.discount, sales.entry_date, sales.status, sales.details, campaigns.name as name FROM SALES\
     INNER JOIN campaigns ON campaigns.id = sales.campaign_id WHERE sales.employee_id = $1 AND sales.entry_date = $2 ORDER BY sales.commission DESC'
     db.query(getSalesQry, [req.user.id, desiredDate], (err, result) => {
         if ( err ) return next(createError.BadRequest(err.message))
