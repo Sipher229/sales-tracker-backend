@@ -14,10 +14,10 @@ const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate, shiftDur
         hours = shiftDuration
     }
     const qry = 
-    'UPDATE daily_logs SET\
-    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1 AND entry_date = $2)::float/$3),\
-    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $4 AND entry_date = $5)\
-    WHERE login_date = $6 AND employee_id = $7 RETURNING sales_per_hour'
+    "UPDATE daily_logs SET\
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1 AND entry_date = $2 AND status = 'closed')::float/$3),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $4 AND entry_date = $5 AND status = 'closed')\
+    WHERE login_date = $6 AND employee_id = $7 RETURNING sales_per_hour"
 
     try {
         const response = await db.query(qry, [employeeId, loginDate, hours, employeeId, loginDate, loginDate, employeeId])
@@ -30,10 +30,10 @@ const updateSalesForLogs = async (hoursLoggedIn, employeeId, loginDate, shiftDur
 
 const updateLogsAfterEdit = async (employeeId, entryDate) => {
     const qry =
-    'UPDATE daily_logs SET\
-    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1 AND entry_date = $2)/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $3 AND login_date = $4 LIMIT 1)::float),\
-    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $5)\
-    WHERE login_date = $6 AND employee_id = $7'
+    "UPDATE daily_logs SET\
+    sales_per_hour = ((SELECT COUNT(*) FROM sales WHERE sales.employee_id = $1 AND entry_date = $2 AND status = 'closed')/ (SELECT daily_logs.shift_duration from daily_logs WHERE employee_id = $3 AND login_date = $4 LIMIT 1)::float),\
+    commission =  (SELECT SUM(sales.commission) FROM sales WHERE sales.employee_id = $5 AND status = 'closed')\
+    WHERE login_date = $6 AND employee_id = $7"
 
     try {
         await db.query(qry, [employeeId, entryDate, employeeId, entryDate, employeeId, entryDate, employeeId])
