@@ -6,6 +6,7 @@ import 'dotenv/config'
 import { differenceInHours, getCurrentDate, getCurrentDateTme } from '../dateFns.js'
 import sendEmail from '../sendEmail.js'
 import stripe from '../stripe.config.js'
+import { generateOtp, verifyOtpExists } from '../utils/otpHelpterFunctions.js'
 
 
 const employeeRouter = express.Router()
@@ -25,45 +26,6 @@ const verifyEmailExists = async (email) => {
         return false
     }
     
-}
-
-const generateOtp = () => {
-    const length = 6
-    let otp = ''
-
-    for(let i = 0; i <length; i++) {
-        const randomNumber = Math.floor(Math.random() * 9)
-        otp += randomNumber
-    }
-    return otp
-}
-
-const verifyOtpExists = async (id, tz) => {
-    const qry = 
-    'SELECT * FROM otps WHERE id = $1'
-    const validFor = 30
-
-    try{
-        const response = await db.query(qry, [id])
-
-        if (response.rows !== 0){
-            const createdAt = response.rows[0].created_at
-            const currentTime = getCurrentDateTme(tz)
-            const timeDifference = differenceInHours(currentTime, createdAt)
-
-            if (timeDifference > validFor) {
-                
-                return false
-            }
-            return true
-        }
-        else{
-            return false
-        }
-    }
-    catch(error){
-        return false
-    }
 }
 
 const updateLogsAfterEdit = async (employeeId, entryDate) => {
@@ -461,23 +423,6 @@ employeeRouter.get('/getemployee/:id', async (req, res, next) => {
     
 })
 
-// employeeRouter.get('/getmanagers', async (req, res, next) => {
-//     if ( ! req.isAuthenticated() ) return next( createError.Unauthorized() )
-
-//     const getManagersQry = 'SELECT * FROM employees WHERE employee_role = $1'
-
-//     try{
-//         const result = await db.query(getManagersQry, ['manager'])
-//         return res.status(200).json({
-//             message: "data retrieved successfully",
-//             requestedData: result.rows
-//         })
-//     }
-//     catch (error) {
-//         return next ( createError.BadRequest(error.message) )
-//     }
-    
-// })
 
 employeeRouter.patch('/assign/managerId', (req, res, next) => {
     if ( !req.isAuthenticated() ) return next( createError.Unauthorized() )
@@ -654,8 +599,7 @@ employeeRouter.post('/confirmemail', async (req, res, next) => {
 
     const otp = generateOtp()
     const createdAt = getCurrentDateTme(req.user.timeZone)
-    const htmlEmail = `<p>Please use the following passcode to confirm your email\
-    in the weedman sales tracker: <br> <b>${otp}</b> <br> Please note that the code is only\
+    const htmlEmail = `<p>Please use the following passcode to confirm your email\: <br> <b>${otp}</b> <br> Please note that the code is only\
     valid for 30 minutes <br> <br> Kind regards, <br> SalesVerse Support Team</p>`
 
     const qry = 
@@ -757,21 +701,31 @@ employeeRouter.put('/resetpassword', async (req, res, next) => {
 
 })
 
-employeeRouter.get('/resendotp', async (req, res, next) => {
+employeeRouter.post('/resendotp', async (req, res, next) => {
     const {username} = req.body
-
     const emailExists = await verifyEmailExists(username)
+    if ( !emailExists ) return next(createError.Unauthorized())
 
-    if (emailExists) {
-        const newOtp = generateOtp()
-        res.status(200).json({
-            message: 'Otp generated  successfully',
-            otp: newOtp
+    const otp = generateOtp()
+    const createdAt = getCurrentDateTme(req.user.timeZone)
+    const htmlEmail = `<p>Please use the following passcode to confirm your email\: <br> <b>${otp}</b> <br> Please note that the code is only\
+    valid for 30 minutes <br> <br> Kind regards, <br> SalesVerse Support Team</p>`
+
+    const qry = 
+    'INSERT INTO otps(id, otp_value, created_at) VALUES(default, $1, $2) RETURNING id'
+
+    db.query(qry, [otp, createdAt], async (err, result) => {
+        if( err ) return next(createError.InternalServerError())
+        
+        // send otp via email
+        const emailSent = await sendEmail(htmlEmail, username)
+
+        if (!emailSent) return next(createError.InternalServerError())
+
+        return res.status(200).json({
+            message: 'OTP sent successfully',
+            otpId: result.rows[0].id
         })
-    }
-    else
-    {
-        return next( createError.Forbidden() )
-    }
+    })
 })
 export default employeeRouter

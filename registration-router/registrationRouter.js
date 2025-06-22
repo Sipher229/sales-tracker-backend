@@ -5,7 +5,9 @@ import 'dotenv/config'
 import stripe from "../stripe.config.js"
 import bcrypt from 'bcrypt'
 import { getCurrentDate, getCurrentDateTme } from '../dateFns.js'
-import {sendEmailAdjustable} from '../sendEmail.js'
+import sendEmail, {sendEmailAdjustable} from '../sendEmail.js'
+import { generateOtp } from '../utils/otpHelpterFunctions.js'
+import { differenceInHours } from '../dateFns.js'
 
 const registrationRouter = express.Router()
 
@@ -40,6 +42,19 @@ const verifyLoggedInToday = async (email, loginDate) => {
         console.log(error.message)
         return false
     }
+}
+const verifyEmailExists = async (email) => {
+    try {
+        const result = await db.query(
+            'SELECT * FROM employees where email = $1',
+            [email.toLowerCase()]
+        )
+        return result.rows.length !== 0
+    } catch (error) {
+        console.log(error.message)
+        return false
+    }
+    
 }
 
 const handleSubscriptionCreated = async (recipient, firstName) => {
@@ -354,7 +369,7 @@ registrationRouter.post("/register-company", async (req, res, next) => {
             await db.query('UPDATE employees SET company_id = $1 WHERE email = $2', [companyId, email.toLowerCase()])
         }
         if (!isError) {
-
+            sendEmailAdjustable()
             return res.status(200).json({
                 companyId,
                 companyExists,
@@ -369,6 +384,118 @@ registrationRouter.post("/register-company", async (req, res, next) => {
         return next(createError.InternalServerError(error.message))
     }
 
+})
+
+registrationRouter.post('/confirm-email', async (req, res, next) => {
+    const {username} = req.body
+    const emailExists = await verifyEmailExists(username)
+    if ( !emailExists ) return next(createError.Unauthorized())
+
+    const otp = generateOtp()
+    const createdAt = getCurrentDateTme()
+    const htmlEmail = `<p>Please use the following passcode to confirm your email\: <br> <b>${otp}</b> <br> Please note that the code is only\
+    valid for 30 minutes. 
+    <br> <br> 
+    Kind regards, <br> SalesVerse Support Team</p>
+    <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />`
+
+    const qry = 
+    'INSERT INTO otps(id, otp_value, created_at) VALUES(default, $1, $2) RETURNING id'
+
+    db.query(qry, [otp, createdAt], async (err, result) => {
+        if( err ) return next(createError.InternalServerError())
+        
+        // send otp via email
+        const emailSent = await sendEmail(htmlEmail, username)
+
+        if (!emailSent) return next(createError.InternalServerError())
+
+        return res.status(200).json({
+            message: 'OTP sent successfully',
+            otpId: result.rows[0].id
+        })
+    })
+})
+
+registrationRouter.post('/verify-otp', (req, res, next) => {
+    const {otp, id} = req.body
+    const validFor = 30
+    const qry = 
+    'SELECT * FROM otps WHERE id = $1'
+
+    db.query(qry, [id], async (err, result) => {
+        if( err ) return next( createError.BadRequest() )
+        if (result.rows.length !== 0){
+
+            const validOtp = result.rows[0].otp_value
+            const createdAt = result.rows[0].created_at
+            const currentTime = getCurrentDateTme()
+            const timeDifference = differenceInHours(currentTime, createdAt)
+            
+            if (validOtp !== otp) {
+                
+                try{
+                    await db.query('DELETE FROM otps WHERE id = $1', [id])
+    
+                    return next(createError.Conflict('Incorrect passcode'))
+                }catch(error){
+                    console.log(error.message)
+                    return next(createError.InternalServerError())
+                }
+            }
+            if (timeDifference > validFor) {
+                
+                try{
+                    await db.query('DELETE FROM otps WHERE id = $1', [id])
+    
+                    return next ( createError.Conflict('Passcode expired') )
+                }catch(error){
+                    console.log(error.message)
+                    return next(createError.InternalServerError())
+                }
+            }
+
+            return res.status(200).json({
+                message: 'Correct passcode',
+                otpId: result.rows[0].id
+            })
+        }
+        else{
+            return next(createError.BadRequest())
+        }
+
+    })
+})
+
+registrationRouter.post('/resend-otp', async (req, res, next) => {
+    const {username} = req.body
+    const emailExists = await verifyEmailExists(username)
+    if ( !emailExists ) return next(createError.Unauthorized())
+
+    const otp = generateOtp()
+    const createdAt = getCurrentDateTme()
+    const htmlEmail = `<p>Please use the following passcode to confirm your email\: <br> <b>${otp}</b> <br> Please note that the code is only\
+    valid for 30 minutes. 
+    <br> <br> 
+    Kind regards, <br> SalesVerse Support Team</p>
+    <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />`
+
+    const qry = 
+    'INSERT INTO otps(id, otp_value, created_at) VALUES(default, $1, $2) RETURNING id'
+
+    db.query(qry, [otp, createdAt], async (err, result) => {
+        if( err ) return next(createError.InternalServerError())
+        
+        // send otp via email
+        const emailSent = await sendEmail(htmlEmail, username)
+
+        if (!emailSent) return next(createError.InternalServerError())
+
+        return res.status(200).json({
+            message: 'OTP sent successfully',
+            otpId: result.rows[0].id
+        })
+    })
 })
 
 registrationRouter.post("/login-after-registration", async (req, res, next) => {
