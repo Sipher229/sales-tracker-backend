@@ -43,7 +43,7 @@ const sendEmailAdjustable = async (sender, html, receiver, subject) => {
             attachments: [{
                 filename: 'logo-png.png',
                 path: './image-resources/logo-png.png',
-                cid: 'logo'
+                cid: 'logobanner'
             }]   
         })
         return result

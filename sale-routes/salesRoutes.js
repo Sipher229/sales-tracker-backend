@@ -1,7 +1,7 @@
 import express from 'express'
 import db from '../dbconnection.js'
 import createError from 'http-errors'
-import {differenceInHours, getCurrentDateTme, getCurrentDate} from '../dateFns.js'
+import {getDifferenceInHours, getCurrentDateTme, getCurrentDate, getFormatedDate} from '../dateFns.js'
 
 const salesRoutes = express.Router()
 
@@ -85,7 +85,7 @@ salesRoutes.post('/addsale', async (req, res, next) => {
     if (!loginTime) return next(createError.InternalServerError())
         
     const currentTime = getCurrentDateTme(req.user.timeZone)
-    const hoursLoggedIn = differenceInHours(currentTime, loginTime)
+    const hoursLoggedIn = getDifferenceInHours(currentTime, loginTime)
     // console.log(loginTime + " " + currentTime)
     // console.log(hoursLoggedIn)
     
@@ -126,7 +126,7 @@ salesRoutes.patch('/update/salesperhour', async (req, res, next) => {
         })
     }
     const currentTime = getCurrentDateTme(req.user.timeZone)
-    const hoursLoggedIn = differenceInHours(currentTime, loginTime)
+    const hoursLoggedIn = getDifferenceInHours(currentTime, getFormatedDate(loginTime));
     
 
     const response = await updateSalesForLogs(hoursLoggedIn,req.user.id, loginDate, shiftDuration)

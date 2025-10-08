@@ -1,4 +1,4 @@
-import {differenceInHours, differenceInMinutes} from 'date-fns'
+import {differenceInHours, differenceInMinutes, parse} from 'date-fns'
 import {format, toZonedTime} from 'date-fns-tz'
 
 const getCurrentDateTme = (timeZone='America/Toronto') => {
@@ -9,9 +9,22 @@ const getCurrentDateTme = (timeZone='America/Toronto') => {
 
 }
 
+const getFormatedDate = (date) => {
+    const formatString = 'yyyy-MM-dd HH:mm:ss';
+    return format(date, formatString);
+}
+const getDifferenceInHours = (laterDate, earlierDate) => {
+    const formatString = 'yyyy-MM-dd HH:mm:ss';
+    const later = parse(laterDate, formatString, new Date());
+    const earlier = parse(earlierDate, formatString, new Date());
+    return differenceInHours(later, earlier);
+}
 
 const getDifferenceInMinutes = (laterDate, earlierDate) => {
-    return differenceInMinutes(laterDate, earlierDate)
+    const formatString = 'yyyy-MM-dd HH:mm:ss';
+    const later = parse(laterDate, formatString, new Date());
+    const earlier = parse(earlierDate, formatString, new Date());
+    return differenceInMinutes(later, earlier);
 }
 
 const getCurrentDate = (timeZone='America/Toronto') => {
@@ -24,4 +37,4 @@ const getCurrentDate = (timeZone='America/Toronto') => {
 // console.log(getCurrentDate('America/Toronto'))
 // console.log(getCurrentDateTme('America/Toronto'))
 
-export {getCurrentDateTme, differenceInHours, getCurrentDate, getDifferenceInMinutes}
+export {getCurrentDateTme, getDifferenceInHours, getCurrentDate, getDifferenceInMinutes, getFormatedDate}

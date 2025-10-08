@@ -3,7 +3,7 @@ import createError from 'http-errors'
 import db from '../dbconnection.js'
 import bcrypt from 'bcrypt'
 import 'dotenv/config'
-import { differenceInHours, getCurrentDate, getCurrentDateTme } from '../dateFns.js'
+import { getDifferenceInHours, getCurrentDate, getCurrentDateTme } from '../dateFns.js'
 import sendEmail from '../sendEmail.js'
 import stripe from '../stripe.config.js'
 import { generateOtp, verifyOtpExists } from '../utils/otpHelpterFunctions.js'
@@ -371,7 +371,6 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
             if (err) return next(createError.BadRequest(err.message))
             
             const employee = result.rows;
-
             try {
                 
                 const subscriptionStatus= (await (db.query("SELECT status FROM subscriptions WHERE company_id = $1", [req.user.company_id]))).rows[0]?.status;
@@ -385,7 +384,7 @@ employeeRouter.get('/getemployee', async  (req, res, next) => {
                 })
 
             } catch (error) {
-                console.error(error.message)
+                console.error("get employee error:", error.message)
                 return next(createError.InternalServerError("failed to get subscription status"))
             }
             
@@ -633,7 +632,7 @@ employeeRouter.post('/verifyotp', (req, res, next) => {
             const validOtp = result.rows[0].otp_value
             const createdAt = result.rows[0].created_at
             const currentTime = getCurrentDateTme(req.user.timeZone)
-            const timeDifference = differenceInHours(currentTime, createdAt)
+            const timeDifference = getDifferenceInHours(currentTime, createdAt)
             
             if (validOtp !== otp) {
                 

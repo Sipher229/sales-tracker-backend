@@ -4,10 +4,10 @@ import createError from 'http-errors'
 import 'dotenv/config'
 import stripe from "../stripe.config.js"
 import bcrypt from 'bcrypt'
-import { getCurrentDate, getCurrentDateTme } from '../dateFns.js'
+import { getCurrentDate, getCurrentDateTme, getDifferenceInMinutes, getFormatedDate } from '../dateFns.js'
 import sendEmail, {sendEmailAdjustable} from '../sendEmail.js'
 import { generateOtp } from '../utils/otpHelpterFunctions.js'
-import { differenceInHours } from '../dateFns.js'
+import { readFile } from '../utils/readFile.js'
 
 const registrationRouter = express.Router()
 
@@ -57,19 +57,43 @@ const verifyEmailExists = async (email) => {
     
 }
 
-const handleSubscriptionCreated = async (recipient, firstName) => {
-    const subject = "SalesVerse - Subscription Complete"
-    const htmlMessage = `
-    <p>
-        Dear ${firstName}, <br /> <br />
-        Welcome to SalesVerse. This is a confirmation that your subscription has <br />
-        been created successfully. We invite you to login to your account and consult <br />
-        the quick start guide in the "job aids" section. Please don't hesitate to contact <br />
-        us with any question by replying to this email. <br /> <br />
-        Kind Regards, <br /> <br />
-        SalesVerse Customer Service Team <br />
-        <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />
-    </p>`
+const sendVerificationEmail = async (email) => {
+    const emailExists = await verifyEmailExists(email);
+    if ( !emailExists ) throw new Error("Email does not exist");
+
+    const otp = generateOtp();
+    const createdAt = getCurrentDateTme();
+    let htmlEmail = await readFile("./html-messages/verificationCodeEmail.txt");
+    htmlEmail = htmlEmail.replace("[otp]", otp);
+
+    const qry = 
+    'INSERT INTO otps(id, otp_value, created_at) VALUES(default, $1, $2) RETURNING id';
+
+    try{
+        db.query(qry, [otp, createdAt]).then( (result) => {
+            sendEmail(htmlEmail, email).catch((error) => {
+                console.log(error.message);
+                throw new Error("Failed to send verification email");
+            });
+            return;
+        }).catch((error) => {
+            console.log(error.message);
+            throw new Error("Failed to save OTP");
+        });
+        return true;
+    }
+    catch(error){
+        console.log(error.message);
+        return false
+    }
+
+}
+
+const handleSubscriptionCreated = async (recipient, firstName, companyName) => {
+    const subject = "SalesVerse - Registered Successfully"
+    let htmlMessage = await readFile('./html-messages/registrationConfirmation.txt')
+    htmlMessage = htmlMessage.replace("[name]", firstName)
+    htmlMessage = htmlMessage.replace("[company name]", companyName)
     const sender = "customer.support@salesverse.org";
 
     const emailSent = await sendEmailAdjustable(sender, htmlMessage, recipient, subject);
@@ -309,8 +333,98 @@ registrationRouter.post("/save-subscription", async (req, res, next) => {
 
 })
 
+registrationRouter.post("/save-subscription-no-card", async (req, res, next) => {
+    const {companyId, companyName, email, planName} = req.body;
+    if (!companyId || !companyName || !email || !planName) return next(createError.BadRequest("Missing parameters"));
+    const emailExists = await verifyEmailExists(email);
+    if (!emailExists) return next(createError.NotFound("Email does not exist"));
+    const pricePerEmployee = 1000;
+    const basePrice = 0;
+    const trialPeriod = 10;
+    const totalAmount = (0 * pricePerEmployee) + (100 * basePrice);
+    const addSubscriptionQry = 'INSERT INTO subscriptions (company_id, stripe_subscription_id, status, trial_ends_at, next_billing_date, stripe_product_id) VALUES ($1, $2, $3, $4, $5, $6)';
+    const updateSuscriptionQry = 'UPDATE subscriptions SET company_id = $1, stripe_subscription_id=$2, status=$3, trial_ends_at=$4, next_billing_date=$5 WHERE company_id =$6';
+    try {
+        
+        const customerId = (await db.query("SELECT stripe_customer_id FROM companies WHERE id = $1",
+            [companyId]
+        )).rows[0].stripe_customer_id;
+
+        const product = await stripe.products.create({
+            name: `${companyName}-${planName} Subscription`,
+            metadata: {companyId, planName}
+        });
+
+        const price = await stripe.prices.create({
+            unit_amount: totalAmount,
+            currency: 'cad',
+            recurring: {interval: 'month'},
+            product: product.id
+        });
+        const existingSubscription = await db.query('SELECT * FROM subscriptions WHERE company_id = $1', [companyId])
+        const subscriptionExists = existingSubscription.rows.length > 0;
+        let subscription;
+
+        if (!subscriptionExists) {
+            subscription = await stripe.subscriptions.create({
+                customer: customerId,
+                items: [{price: price.id}],
+                trial_period_days: trialPeriod,
+                payment_behavior: 'default_incomplete',
+                expand: ['latest_invoice.payment_intent'],
+                metadata: { companyId, email },
+            })
+            await db.query(
+                addSubscriptionQry,
+                [
+                    companyId,
+                    subscription.id,
+                    subscription.status,
+                    new Date(subscription.trial_end * 1000),
+                    new Date(subscription.current_period_end * 1000),
+                    product.id
+                ]
+            )
+        }
+        else {
+            subscription  = await stripe.subscriptions.update(
+                existingSubscription.rows[0].stripe_subscription_id, 
+                {
+                    metadata: { companyId, email },
+                    payment_behavior: 'default_incomplete',
+                    expand: ['latest_invoice.payment_intent'],
+                }
+            )
+            await db.query(
+                updateSuscriptionQry,
+                [
+                    companyId,
+                    subscription.id,
+                    subscription.status,
+                    new Date(subscription.trial_end * 1000),
+                    new Date(subscription.current_period_end * 1000),
+                    companyId
+                ]
+            );
+        }
+        
+        return res.status(200).json({
+            subscriptionId: subscription.id,
+            message: "Saved subscription successfully"
+        });
+    } catch (error) {
+        console.error(error.message);
+        return next(createError.InternalServerError("Failed to add subscription"))
+    }
+
+})
+
 registrationRouter.post("/register-company", async (req, res, next) => {
     const {companyName, firstName, lastName, employeeCount, email, password} = req.body
+
+    if (!companyName || !firstName || !lastName || !employeeCount || !email || !password) {
+        return next(createError.BadRequest("missing required fields"))
+    }
 
     const employeeType = "super employee"
     const employeeRole = "manager"
@@ -330,55 +444,47 @@ registrationRouter.post("/register-company", async (req, res, next) => {
         const companyExists = (await db.query("SELECT * FROM companies where company_name = $1", [companyName])).rows.length > 0;
     
         const employeeExists = (await db.query("SELECT * FROM employees where email = $1", [email.toLowerCase()])).rows.length > 0;
+
+        // Todo: if both the company and the employee exist, check if the employee belongs to the company
+        // if not, return an error message
+        // if yes, return the company id and a message saying the employee already exists
+
+        if (companyExists || employeeExists) {
+            return next(createError.Conflict("company or employee already exists"));
+        }
+        const customer = await stripe.customers.create({
+            name: companyName,
+            email,
+        });
+        customerId = customer.id
+
+        const response = await db.query(registerCompanyQry, [companyName, customerId, employeeCount]);
+        companyId = response.rows[0].id;
      
-    
-    
-        if (!companyExists) {
-            const customer = await stripe.customers.create({
-                name: companyName,
-                email,
+        bcrypt.hash(password, saltRounds, (err, hash) => {
+            if (err) return next(createError.InternalServerError("hashing error"));
+
+            db.query(registerEmployeeQry, [firstName, lastName, email.toLowerCase(), hash, employeeRole, employeeType, companyId])
+            .then( (result) => {
+                return sendVerificationEmail(email);
+            }).then ((emailSent) => {
+                if (!emailSent) {
+                    return next(createError.InternalServerError("Failed to send verification email"));
+                }
+                return res.status(200).json({
+                    message: "registered successfully",
+                    companyExists,
+                    employeeExists,
+                    companyId
+                });
+            }).catch( (error) => {
+                console.error(error.message);
+                isError = true;
+                return next(createError.InternalServerError("Failed to register employee"));
             });
-            customerId = customer.id
+
+        });
     
-            const response = await db.query(registerCompanyQry, [companyName, customerId, employeeCount])
-            companyId = response.rows[0].id
-        }
-        else {
-            // companyExists = true
-            let result = await db.query('SELECT * FROM companies WHERE company_name = $1', [companyName])
-            companyId = result.rows[0].id      
-        }
-    
-        if (!employeeExists) {
-    
-            bcrypt.hash(password, saltRounds, (err, hash) => {
-                if (err) return next(createError.InternalServerError("hashing error"))
-                db.query(registerEmployeeQry, [firstName, lastName, email.toLowerCase(), hash, employeeRole, employeeType, companyId], (err) => {
-                    if (err) {
-                        console.error(err.message)
-                        isError = true
-                        // return res.status(400).json({
-                        //     message: "failed to add company/employee"
-                        // })
-                    } 
-                } )
-            })
-    
-        }
-        else{
-            await db.query('UPDATE employees SET company_id = $1 WHERE email = $2', [companyId, email.toLowerCase()])
-        }
-        if (!isError) {
-            sendEmailAdjustable()
-            return res.status(200).json({
-                companyId,
-                companyExists,
-                employeeExists,
-            })
-        }
-        else{
-            next(createError.BadRequest("failed to add company/employee"))
-        }
     } catch (error) {
         console.error(error.message)
         return next(createError.InternalServerError(error.message))
@@ -387,17 +493,14 @@ registrationRouter.post("/register-company", async (req, res, next) => {
 })
 
 registrationRouter.post('/confirm-email', async (req, res, next) => {
-    const {username} = req.body
-    const emailExists = await verifyEmailExists(username)
+    const {email} = req.body    
+    const emailExists = await verifyEmailExists(email)
     if ( !emailExists ) return next(createError.Unauthorized())
 
     const otp = generateOtp()
     const createdAt = getCurrentDateTme()
-    const htmlEmail = `<p>Please use the following passcode to confirm your email\: <br> <b>${otp}</b> <br> Please note that the code is only\
-    valid for 30 minutes. 
-    <br> <br> 
-    Kind regards, <br> SalesVerse Support Team</p>
-    <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />`
+    let htmlEmail = await readFile("./html-messages/verificationCodeEmail.txt")
+    htmlEmail = htmlEmail.replace("[otp]", otp)
 
     const qry = 
     'INSERT INTO otps(id, otp_value, created_at) VALUES(default, $1, $2) RETURNING id'
@@ -406,7 +509,7 @@ registrationRouter.post('/confirm-email', async (req, res, next) => {
         if( err ) return next(createError.InternalServerError())
         
         // send otp via email
-        const emailSent = await sendEmail(htmlEmail, username)
+        const emailSent = await sendEmail(htmlEmail, email)
 
         if (!emailSent) return next(createError.InternalServerError())
 
@@ -418,24 +521,27 @@ registrationRouter.post('/confirm-email', async (req, res, next) => {
 })
 
 registrationRouter.post('/verify-otp', (req, res, next) => {
-    const {otp, id} = req.body
-    const validFor = 30
+    const {otp} = req.body
+    const validFor = 10
     const qry = 
-    'SELECT * FROM otps WHERE id = $1'
+    'SELECT * FROM otps WHERE otp_value = $1'
 
-    db.query(qry, [id], async (err, result) => {
+    if (!otp) return next(createError.BadRequest('missing required fields'));
+
+    db.query(qry, [otp], async (err, result) => {
         if( err ) return next( createError.BadRequest() )
         if (result.rows.length !== 0){
 
             const validOtp = result.rows[0].otp_value
-            const createdAt = result.rows[0].created_at
+            let createdAt = getFormatedDate(result.rows[0].created_at);
             const currentTime = getCurrentDateTme()
-            const timeDifference = differenceInHours(currentTime, createdAt)
+            // console.log(createdAt, currentTime);
+            const timeDifference = getDifferenceInMinutes(currentTime, createdAt)
             
-            if (validOtp !== otp) {
-                
+            
+            if (parseInt(validOtp) !== parseInt(otp)) {
                 try{
-                    await db.query('DELETE FROM otps WHERE id = $1', [id])
+                    await db.query('DELETE FROM otps WHERE otp_value = $1', [otp])
     
                     return next(createError.Conflict('Incorrect passcode'))
                 }catch(error){
@@ -444,9 +550,9 @@ registrationRouter.post('/verify-otp', (req, res, next) => {
                 }
             }
             if (timeDifference > validFor) {
-                
+                console.log(otp, validOtp, "expired")
                 try{
-                    await db.query('DELETE FROM otps WHERE id = $1', [id])
+                    await db.query('DELETE FROM otps WHERE otp_value = $1', [otp])
     
                     return next ( createError.Conflict('Passcode expired') )
                 }catch(error){
@@ -454,6 +560,7 @@ registrationRouter.post('/verify-otp', (req, res, next) => {
                     return next(createError.InternalServerError())
                 }
             }
+            await db.query('DELETE FROM otps WHERE otp_value = $1', [otp])
 
             return res.status(200).json({
                 message: 'Correct passcode',
@@ -461,24 +568,21 @@ registrationRouter.post('/verify-otp', (req, res, next) => {
             })
         }
         else{
-            return next(createError.BadRequest())
+            return next(createError.Forbidden("Otp is invalid or expired"));
         }
 
     })
 })
 
 registrationRouter.post('/resend-otp', async (req, res, next) => {
-    const {username} = req.body
-    const emailExists = await verifyEmailExists(username)
+    const {email} = req.body
+    const emailExists = await verifyEmailExists(email)
     if ( !emailExists ) return next(createError.Unauthorized())
 
     const otp = generateOtp()
     const createdAt = getCurrentDateTme()
-    const htmlEmail = `<p>Please use the following passcode to confirm your email\: <br> <b>${otp}</b> <br> Please note that the code is only\
-    valid for 30 minutes. 
-    <br> <br> 
-    Kind regards, <br> SalesVerse Support Team</p>
-    <img src=cid:logo style='min-width: 300px; height: 70px; object-fit: cover;' />`
+    let htmlEmail = await readFile("./html-messages/verificationCodeEmail.txt")
+    htmlEmail = htmlEmail.replace("[otp]", otp)
 
     const qry = 
     'INSERT INTO otps(id, otp_value, created_at) VALUES(default, $1, $2) RETURNING id'
@@ -487,7 +591,7 @@ registrationRouter.post('/resend-otp', async (req, res, next) => {
         if( err ) return next(createError.InternalServerError())
         
         // send otp via email
-        const emailSent = await sendEmail(htmlEmail, username)
+        const emailSent = await sendEmail(htmlEmail, email)
 
         if (!emailSent) return next(createError.InternalServerError())
 
@@ -546,7 +650,7 @@ registrationRouter.post("/login-after-registration", async (req, res, next) => {
 registrationRouter.post("/webhook", express.raw({type: 'application/json'}), async (req, res) => {
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_PROD_SIGNING_SECRET;
-    const getUserQry = "SELECT first_name, email from companies INNER JOIN employees \
+    const getUserQry = "SELECT first_name, email, company_name from companies INNER JOIN employees \
     ON companies.id = employees.company_id WHERE stripe_customer_id = $1 and employee_type = 'super employee'"
 
     let event;
@@ -554,11 +658,12 @@ registrationRouter.post("/webhook", express.raw({type: 'application/json'}), asy
         event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
         const customer = event.data.object.customer;
         const user = await db.query(getUserQry, [customer]);
-        let first_name, email;
+        let first_name, email, companyName;
 
         if (user.rows.length > 0){
             first_name = user.rows[0].first_name;
             email = user.rows[0].email;
+            companyName = user.rows[0].company_name;
         }
         else{
             return res.status(400).send('Webhook Error');
@@ -566,7 +671,7 @@ registrationRouter.post("/webhook", express.raw({type: 'application/json'}), asy
 
         switch (event.type) {
             case 'customer.subscription.created':
-                await handleSubscriptionCreated(email, first_name);
+                await handleSubscriptionCreated(email, first_name, companyName);
                 break;
             case 'invoice.payment_succeeded':
                 await handlePaymentSucceeded(email, first_name);

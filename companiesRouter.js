@@ -102,12 +102,17 @@ companiesRouter.post("/save-subscription", async (req, res, next) => {
             // update the existing subscription
             const updatedSubscription = await stripe.subscriptions.update(stripeSubscriptionId, {
                 billing_cycle_anchor: 'now',
+                trial_end: 'now',
             })
-    
+
             // update the existing subscriptions in our DB
             db.query(
                 updateSubscriptionQry, 
-                [updatedSubscription.status, updatedSubscription.current_period_end, req.user.company_id],
+                [
+                    updatedSubscription.status, 
+                    new Date(updatedSubscription.current_period_end * 1000), 
+                    req.user.company_id
+                ],
                 (err) => {
                     if (err) {
                         console.error(err);
@@ -156,11 +161,11 @@ companiesRouter.post("/save-subscription", async (req, res, next) => {
                 customer: stripe_customer_id,
                 items: [
                     {
-                        price: newPrice.id, // Use the dynamically created price
+                        price: newPrice.id,
                     },
                 ],
                 trial_end: 'now',
-                // expand: ['latest_invoice.payment_intent'], // Include payment intent for immediate payment confirmation
+                expand: ['latest_invoice.payment_intent'], // Include payment intent for immediate payment confirmation
             });
 
             await db.query(
@@ -191,7 +196,7 @@ companiesRouter.post("/save-subscription", async (req, res, next) => {
 companiesRouter.get("/get-subscription-status/:id", async (req, res, next) => {
     if (!req.isAuthenticated()) return next(createError.Unauthorized());
 
-    if (req.user && req.user.employee_type !== "super employee") return next(createError.Forbidden());
+    if (req.user.employee_type !== "super employee") return next(createError.Forbidden());
 
     const {id} = req.params;
     if (!id) return next(createError.NotFound("Missing params"))
@@ -206,6 +211,63 @@ companiesRouter.get("/get-subscription-status/:id", async (req, res, next) => {
     catch(error) {
         console.error(error.message);
         return next(createError.InternalServerError("failed to fetch subscription status"));
+    }
+});
+
+companiesRouter.get("/get-subscription-status-verbose/:id", async (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized());
+    if (req.user.employee_type !== "super employee") return next(createError.Forbidden());
+
+    const {id} = req.params;
+    if (!id) return next(createError.NotFound("Missing params"))
+
+    try {
+        const subscriptionStatus = await db.query("SELECT status FROM subscriptions WHERE company_id = $1", [id]);
+        return res.status(200).json({
+            requestedData: subscriptionStatus.rows[0].status
+        });
+    } catch (error) {
+        console.error(error.message);
+        return next(createError.InternalServerError("failed to fetch subscription details"));
+    }
+});
+
+companiesRouter.get("/trial-ends-at/:id", async (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized());
+
+    if (req.user.employee_type !== "super employee") return next(createError.Forbidden());
+
+    const {id} = req.params;
+    if (!id) return next(createError.NotFound("Missing params"))
+
+    try {
+        const trialEndsAt = await db.query("SELECT trial_ends_at FROM subscriptions WHERE company_id = $1", [id]);
+        return res.status(200).json({
+            requestedData: trialEndsAt.rows[0].trial_ends_at
+        });
+    } catch (error) {
+        console.error(error.message);
+        return next(createError.InternalServerError("failed to fetch trial ends at"));
+    }
+});
+
+companiesRouter.post("/get-company-id", async (req, res, next) => {
+    if (!req.isAuthenticated()) return next(createError.Unauthorized());
+
+    if (req.user && req.user.employee_type !== "super employee") return next(createError.Forbidden());
+    const { email } = req.body;
+    console.log(email);
+    if (!email) return next(createError.BadRequest("Missing email"));
+
+    try {
+        const companyId = await db.query("SELECT company_id FROM employees WHERE email = $1", [email]);
+        console.log(companyId.rows);
+        return res.status(200).json({
+            requestedData: companyId.rows[0].company_id
+        });
+    } catch (error) {
+        console.error(error.message);
+        return next(createError.InternalServerError("failed to fetch company id"));
     }
 });
 
