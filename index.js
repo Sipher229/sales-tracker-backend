@@ -251,6 +251,28 @@ app.post("/api/contact-us", (req, res, next) => {
     }
 })
 
+app.post('/api/log-visit', (req, res, next) => {
+    const {url} = req.body;
+    if (!url) {
+        return next (createError.BadRequest("URL is required"))
+    }
+    const qry = 'INSERT INTO visit_logs (id, url, created_at) VALUES (default, $1, $2)'
+    const createdAt = getCurrentDateTme();
+
+    db.query(qry, [url, createdAt], (err) => {
+        if (err) {
+            console.error(err.message)
+            return next(createError.InternalServerError("Failed to log visit"))
+        }
+        res.status(200).json({
+            message: "Visit logged successfully"
+        })
+    })
+
+})
+
+//------------------------------------- no routes after this line -----------------------------
+
 app.use((req, res, next)=> {
     next(createError.NotFound())
 })
